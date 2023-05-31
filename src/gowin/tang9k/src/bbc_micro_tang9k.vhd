@@ -52,6 +52,7 @@ use ieee.numeric_std.all;
 entity bbc_micro_tang9k is
 generic (
    IncludeAMXMouse    : boolean := false;
+   IncludeSPISD       : boolean := true;
    IncludeSID         : boolean := false;
    IncludeMusic5000   : boolean := false;
    IncludeICEDebugger : boolean := false;
@@ -62,7 +63,7 @@ generic (
    UseOrigKeyboard    : boolean := false;
    UseT65Core         : boolean := true;
    UseAlanDCore       : boolean := false;
-   IncludeBootStrap   : boolean := false;
+   IncludeBootStrap   : boolean := true;
    IncludeMinimal     : boolean := true; -- Creates a build to test
                                           -- 4x16K ROM Images
    PRJ_ROOT           : string := "../../..";
@@ -77,8 +78,6 @@ port (
    ps2_data        : inout std_logic;
    ps2_mouse_clk   : inout std_logic;
    ps2_mouse_data  : inout std_logic;
-   audiol          : out   std_logic;
-   audior          : out   std_logic;
    tf_miso         : in    std_logic;
    tf_cs           : out   std_logic;
    tf_sclk         : out   std_logic;
@@ -105,10 +104,14 @@ port (
    O_psram_reset_n: out    std_logic_vector(1 downto 0);
    O_psram_cs_n   : out    std_logic_vector(1 downto 0);
 
-   FLASH_CS          : out   std_logic;                     -- Active low FLASH chip select
-   FLASH_SI          : out   std_logic;                     -- Serial output to FLASH chip SI pin
-   FLASH_CK          : out   std_logic;                     -- FLASH clock
-   FLASH_SO          : in    std_logic                      -- Serial input from FLASH chip SO pin
+   -- A general purpose 12-bit bus, that we can use for several functions
+   -- such as 6502 tracing
+   gpio           : out    std_logic_vector(13 downto 0);
+
+   flash_cs       : out   std_logic;                     -- Active low FLASH chip select
+   flash_si       : out   std_logic;                     -- Serial output to FLASH chip SI pin
+   flash_ck       : out   std_logic;                     -- FLASH clock
+   flash_so       : in    std_logic                      -- Serial input from FLASH chip SO pin
 
     );
 end entity;
@@ -133,8 +136,14 @@ signal clock_48        : std_logic;
 signal clock_96        : std_logic;
 signal clock_96_p      : std_logic;
 signal mem_ready       : std_logic;
+
+signal dac_l_in        : std_logic_vector(9 downto 0);
+signal dac_r_in        : std_logic_vector(9 downto 0);
 signal audio_l         : std_logic_vector(15 downto 0);
 signal audio_r         : std_logic_vector(15 downto 0);
+signal audiol          : std_logic;
+signal audior          : std_logic;
+
 signal powerup_reset_n : std_logic := '0';
 signal hard_reset_n    : std_logic;
 signal reset_counter   : std_logic_vector(RESETBITS downto 0);
@@ -203,6 +212,13 @@ signal i_VGA_B          : std_logic_vector(3 downto 0);
 -- A registered version to allow slow flash to be used
 signal ext_A_r         : std_logic_vector (18 downto 0);
 
+-- CPU tracing
+signal trace_data      :   std_logic_vector(7 downto 0);
+signal trace_r_nw      :   std_logic;
+signal trace_sync      :   std_logic;
+signal trace_rstn      :   std_logic;
+signal trace_phi2      :   std_logic;
+
 function hex_to_seven_seg(hex: std_logic_vector(3 downto 0))
         return std_logic_vector
     is begin
@@ -242,6 +258,7 @@ vga_b <= i_VGA_B(i_VGA_B'high);
     bbc_micro : entity work.bbc_micro_core
         generic map (
             IncludeAMXMouse    => IncludeAMXMouse,
+            IncludeSPISD       => IncludeSPISD,
             IncludeSID         => IncludeSID,
             IncludeMusic5000   => IncludeMusic5000,
             IncludeICEDebugger => IncludeICEDebugger,
@@ -318,6 +335,11 @@ vga_b <= i_VGA_B(i_VGA_B'high);
             ext_tube_a     => ext_tube_a,
             ext_tube_di    => ext_tube_di,
             ext_tube_do    => ext_tube_do,
+            trace_data     => trace_data,
+            trace_r_nw     => trace_r_nw,
+            trace_sync     => trace_sync,
+            trace_rstn     => trace_rstn,
+            trace_phi2     => trace_phi2,
             test           => test
         );
 
@@ -369,42 +391,36 @@ vga_b <= i_VGA_B(i_VGA_B'high);
     end process;
 
 
----- DB: TODO: Get PWM/SigDelta from Blitter --- --------------------------------------------------------
----- DB: TODO: Get PWM/SigDelta from Blitter --- -- Audio DACs
----- DB: TODO: Get PWM/SigDelta from Blitter --- --------------------------------------------------------
----- DB: TODO: Get PWM/SigDelta from Blitter --- 
----- DB: TODO: Get PWM/SigDelta from Blitter ---     i2s : entity work.i2s_intf
----- DB: TODO: Get PWM/SigDelta from Blitter ---         port map (
----- DB: TODO: Get PWM/SigDelta from Blitter ---             CLK         => clock_48,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             nRESET      => hard_reset_n,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             PCM_INL     => pcm_inl,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             PCM_INR     => pcm_inr,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             PCM_OUTL    => audio_l,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             PCM_OUTR    => audio_r,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             I2S_MCLK    => AUD_XCK,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             I2S_LRCLK   => AUD_DACLRCK,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             I2S_BCLK    => AUD_BCLK,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             I2S_DOUT    => AUD_DACDAT,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             I2S_DIN     => AUD_ADCDAT
----- DB: TODO: Get PWM/SigDelta from Blitter ---             );
----- DB: TODO: Get PWM/SigDelta from Blitter --- 
----- DB: TODO: Get PWM/SigDelta from Blitter ---     -- This is to avoid a possible conflict if the codec is in master mode
----- DB: TODO: Get PWM/SigDelta from Blitter ---     AUD_ADCLRCK <= 'Z';
----- DB: TODO: Get PWM/SigDelta from Blitter --- 
----- DB: TODO: Get PWM/SigDelta from Blitter ---     i2c : entity work.i2c_loader
----- DB: TODO: Get PWM/SigDelta from Blitter ---         generic map (
----- DB: TODO: Get PWM/SigDelta from Blitter ---             log2_divider => 7
----- DB: TODO: Get PWM/SigDelta from Blitter ---             )
----- DB: TODO: Get PWM/SigDelta from Blitter ---         port map (
----- DB: TODO: Get PWM/SigDelta from Blitter ---             CLK         => clock_48,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             nRESET      => hard_reset_n,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             I2C_SCL     => I2C_SCLK,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             I2C_SDA     => I2C_SDAT,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             IS_DONE     => is_done,
----- DB: TODO: Get PWM/SigDelta from Blitter ---             IS_ERROR    => is_error
----- DB: TODO: Get PWM/SigDelta from Blitter ---             );
----- DB: TODO: Get PWM/SigDelta from Blitter ---     LEDR(4) <= is_error;
----- DB: TODO: Get PWM/SigDelta from Blitter ---     LEDR(5) <= not is_done;
+--------------------------------------------------------
+-- Audio DACs
+--------------------------------------------------------
+
+    -- Convert from signed to unsigned
+    dac_l_in <= (not audio_l(15)) & audio_l(14 downto 6);
+    dac_r_in <= (not audio_r(15)) & audio_r(14 downto 6);
+
+    dac_l : entity work.pwm_sddac
+    generic map (
+        msbi_g => 9
+    )
+    port map (
+        clk_i => clock_48,
+        reset => '0',
+        dac_i => dac_l_in,
+        dac_o => audiol
+    );
+
+    dac_r : entity work.pwm_sddac
+    generic map (
+        msbi_g => 9
+    )
+    port map (
+        clk_i => clock_48,
+        reset => '0',
+        dac_i => dac_r_in,
+        dac_o => audior
+    );
+
 
 --- DB: -----------------------------------------------------------
 --- DB: ----- Map external memory bus to SRAM/FLASH
@@ -548,7 +564,7 @@ vga_b <= i_VGA_B(i_VGA_B'high);
 --- DB ---    GPIO_0(31 downto 15) <= (others => 'Z');
 --- DB ---    GPIO_0(13 downto 0)  <= (others => 'Z');
 
-   
+
 e_mem: entity work.mem_tang_9k
 generic map (
     SIM => SIM,
@@ -579,11 +595,13 @@ port map (
    O_psram_cs_n   => O_psram_cs_n,
    O_psram_reset_n=> O_psram_reset_n,
 
-   FLASH_CS       => FLASH_CS,
-   FLASH_SI       => FLASH_SI,
-   FLASH_CK       => FLASH_CK,
-   FLASH_SO       => FLASH_SO
+   FLASH_CS       => flash_cs,
+   FLASH_SI       => flash_si,
+   FLASH_CK       => flash_ck,
+   FLASH_SO       => flash_so
 
 );
+
+gpio <= audiol & audior & trace_rstn & trace_phi2 & trace_sync & trace_r_nw & trace_data;
 
 end architecture;
