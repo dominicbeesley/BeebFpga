@@ -266,7 +266,7 @@ begin
         begin
             if rising_edge(CLK_48) and i_X_nCS = '0' and i_X_nWE_long = '0' then
                 if core_A(18) = '1' then
-                    r_mem_ram(to_integer(unsigned(core_A(15 downto 0)))) <= i_X_Dout;
+                    r_mem_ram(to_integer(unsigned(core_A(15 downto 0)))) <= i_X_Din;
                 end if;
             end if;
         end process;
@@ -310,7 +310,7 @@ begin
                             if IncludeBootstrap then
                                 state <= DBG_01;
                             else
-                                state <= DBG_08;
+                                state <= DBG_0A;
                             end if;
                         end if;
                     when DBG_01 =>
@@ -423,13 +423,17 @@ begin
                 test_write := cmd_write1 and not cmd_write2;
                 cmd_write2 := cmd_write1;
                 if i_X_nCS = '0' and i_X_A_stb = '1' and i_X_nWE_long = '0' then
-                    cmd_write1 := '0';  -- TODO: this was psram write cmd
+                    cmd_write1 := '1';  -- TODO: this was psram write cmd
+                else
+                    cmd_write1 := '0';
                 end if;
                 -- Check reads at the end of the read cycle
                 test_read  := not cmd_read1 and cmd_read2;
                 cmd_read2  := cmd_read1;
                 if i_X_nCS = '0' and i_X_A_stb = '1' and i_X_nOE = '0' then
                     cmd_read1  := '1';
+                else
+                    cmd_read1 := '0';
                 end if;
                 -- Move dout back to 48MHz domain
                 test_Dout := i_X_Dout;

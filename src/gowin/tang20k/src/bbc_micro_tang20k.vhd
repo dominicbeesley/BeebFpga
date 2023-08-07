@@ -46,16 +46,16 @@ use ieee.numeric_std.all;
 
 entity bbc_micro_tang20k is
     generic (
-        IncludeMaster      : boolean := true; -- if both included, the CPU is the AlanD 65C02
+        IncludeMaster      : boolean := false; -- if both included, the CPU is the AlanD 65C02
         IncludeBeeb        : boolean := true; -- and btn1 can toggle between the ROM images
 
         IncludeAMXMouse    : boolean := false;
         IncludeSPISD       : boolean := true;
-        IncludeSID         : boolean := true;
+        IncludeSID         : boolean := false;
         IncludeMusic5000   : boolean := false; -- doesn't meet timing, but seems to work
         IncludeVideoNuLA   : boolean := true;
-        IncludeTrace       : boolean := true;
-        IncludeHDMI        : boolean := true;
+        IncludeTrace       : boolean := false;
+        IncludeHDMI        : boolean := false;
         IncludeBootStrap   : boolean := false;
         IncludeMonitor     : boolean := true;
 
@@ -711,8 +711,8 @@ begin
     vga_g <= i_VGA_G(i_VGA_G'high);
     vga_b <= i_VGA_B(i_VGA_B'high);
 
-
-    led <= monitor_leds when IncludeMonitor else
-           not caps_led & not shift_led & "111" & hdmi_audio_en;
+    led <= reset_counter(reset_counter'high-1 downto reset_counter'high-6) when powerup_reset_n = '0' else
+        monitor_leds when IncludeMonitor else
+        not caps_led & not shift_led & "111" & hdmi_audio_en;
 
 end architecture;
