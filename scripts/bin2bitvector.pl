@@ -30,6 +30,16 @@ options:
 	}
 }
 
+sub parsenum {
+	my ($n) = @_;
+
+	if ($n =~ /^0x/) {
+		return hex($n);
+	} else {
+		return $n;
+	}
+}
+
 ##############################################################################
 #################################### main ####################################
 ##############################################################################
@@ -58,9 +68,15 @@ while (scalar @ARGV && $ARGV[0] =~ /^-/) {
 	}
 	elsif ($sw eq "--b4") 
 	{
-		$b4 = shift;
+		$b4 = parsenum(shift);
 
 		$b4 > 0 && $b4 < 0x10000 or Usage "Bad b4 parameter '$b4' should be >0 and <65536\n", 1;
+	}
+	elsif ($sw eq "--size") 
+	{
+		$size = parsenum(shift);
+
+		$size > 0 && $size < 0x10000 or Usage "Bad size parameter '$size' should be >0 and <65536\n", 1;
 	}
 	else {
 		die Usage("unknown switch $sw", 1);
@@ -99,3 +115,5 @@ if ($size > 0 && $l + $b4 < $size) {
 }
 
 close $fn_in;
+
+

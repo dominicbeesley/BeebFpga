@@ -44,9 +44,9 @@ end mem_tang_20k;
 
 architecture rtl of mem_tang_20k is
 
-    constant ROMSIZE : natural := 32768;
+    constant ROMSIZE : natural := 49152;
 
-    type mem_mos_t is array(0 to ROMSIZE) of std_logic_vector(7 downto 0);
+    type mem_mos_t is array(0 to ROMSIZE-1) of std_logic_vector(7 downto 0);
     type mem_ram_t is array(0 to 32767) of std_logic_vector(7 downto 0);
 
     impure function MEM_INIT_FILE(file_name:STRING) return mem_mos_t is
@@ -218,7 +218,7 @@ begin
         begin
             if rising_edge(CLK_48) and i_X_nCS = '0' and i_X_nOE = '0' then
                 if core_A(18) = '0' then
-                    i_X_Dout <= r_mem_rom(to_integer(unsigned(core_A(14 downto 0))));
+                    i_X_Dout <= r_mem_rom(to_integer(unsigned(core_A(15 downto 0))));
                 else
                     i_X_Dout <= r_mem_ram(to_integer(unsigned(core_A(15 downto 0))));
                 end if;
@@ -255,9 +255,9 @@ begin
         begin
             if rising_edge(CLK_48) and i_X_nCS = '0' and i_X_nOE = '0' then
                 if core_A(18) = '0' then
-                    i_X_Dout <= r_mem_rom(to_integer(unsigned(core_A(14 downto 0))));
+                    i_X_Dout <= r_mem_rom(to_integer(unsigned(core_A(15 downto 0))));
                 else
-                    i_X_Dout <= r_mem_ram(to_integer(unsigned(core_A(15 downto 0))));
+                    i_X_Dout <= r_mem_ram(to_integer(unsigned(core_A(14 downto 0))));
                 end if;
             end if;
         end process;
@@ -266,7 +266,7 @@ begin
         begin
             if rising_edge(CLK_48) and i_X_nCS = '0' and i_X_nWE_long = '0' then
                 if core_A(18) = '1' then
-                    r_mem_ram(to_integer(unsigned(core_A(15 downto 0)))) <= i_X_Din;
+                    r_mem_ram(to_integer(unsigned(core_A(14 downto 0)))) <= i_X_Din;
                 end if;
             end if;
         end process;

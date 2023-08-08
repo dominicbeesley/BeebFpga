@@ -51,7 +51,7 @@ entity bbc_micro_tang20k is
 
         IncludeAMXMouse    : boolean := false;
         IncludeSPISD       : boolean := true;
-        IncludeSID         : boolean := false;
+        IncludeSID         : boolean := true;
         IncludeMusic5000   : boolean := false; -- doesn't meet timing, but seems to work
         IncludeVideoNuLA   : boolean := true;
         IncludeTrace       : boolean := false;
@@ -60,7 +60,7 @@ entity bbc_micro_tang20k is
         IncludeMonitor     : boolean := true;
 
         PRJ_ROOT           : string  := "../../..";
-        MOS_NAME           : string  := "/roms/bbcb/os12_basic.bit";
+        MOS_NAME           : string  := "/roms/bbcb/os12_mmfs_basic.bit";
         SIM                : boolean := false
         );
     port (
