@@ -55,7 +55,7 @@ entity bbc_micro_tang20k is
         IncludeMusic5000   : boolean := false; -- doesn't meet timing, but seems to work
         IncludeVideoNuLA   : boolean := true;
         IncludeTrace       : boolean := false;
-        IncludeHDMI        : boolean := false;
+        IncludeHDMI        : boolean := true;
         IncludeBootStrap   : boolean := false;
         IncludeMonitor     : boolean := true;
 

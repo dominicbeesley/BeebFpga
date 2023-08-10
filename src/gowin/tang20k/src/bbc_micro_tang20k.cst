@@ -37,15 +37,15 @@ IO_LOC "vga_b" T8;
 IO_PORT "vga_b" IO_TYPE=LVCMOS33 PULL_MODE=NONE;
 
 
-// // HDMI
-// IO_LOC "tmds_d_p[0]" H14,H16;
-// IO_PORT "tmds_d_p[0]" PULL_MODE=NONE;
-// IO_LOC "tmds_d_p[1]" J15,K16;
-// IO_PORT "tmds_d_p[1]" PULL_MODE=NONE;
-// IO_LOC "tmds_d_p[2]" K14,K15;
-// IO_PORT "tmds_d_p[2]" PULL_MODE=NONE;
-// IO_LOC "tmds_clk_p" G16,H15;
-// IO_PORT "tmds_clk_p" PULL_MODE=NONE;
+// HDMI
+IO_LOC "tmds_d_p[0]" H14,H16;
+IO_PORT "tmds_d_p[0]" PULL_MODE=NONE;
+IO_LOC "tmds_d_p[1]" J15,K16;
+IO_PORT "tmds_d_p[1]" PULL_MODE=NONE;
+IO_LOC "tmds_d_p[2]" K14,K15;
+IO_PORT "tmds_d_p[2]" PULL_MODE=NONE;
+IO_LOC "tmds_clk_p" G16,H15;
+IO_PORT "tmds_clk_p" PULL_MODE=NONE;
 
 IO_LOC  "AUD_DACLRCK" P16;
 IO_PORT "AUD_DACLRCK" IO_TYPE=LVCMOS33;
