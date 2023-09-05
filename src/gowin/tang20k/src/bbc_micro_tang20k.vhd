@@ -98,6 +98,9 @@ entity bbc_micro_tang20k is
         vga_hs          : out   std_logic;
         vga_vs          : out   std_logic;
 
+        hsync_org       : out   std_logic;
+        clock27_o       : out   std_logic;
+
         -- PT8211 DAC
         AUD_DACLRCK     : out   std_logic;
         AUD_BCLK        : out   std_logic;
@@ -113,6 +116,8 @@ entity bbc_micro_tang20k is
 end entity;
 
 architecture rtl of bbc_micro_tang20k is
+
+
 
     --------------------------------------------------------
     -- FPGA Primitive Components
@@ -206,6 +211,13 @@ architecture rtl of bbc_micro_tang20k is
         );
     end component;
 
+    COMPONENT OBUF
+    PORT (
+        O:OUT std_logic;
+        I:IN std_logic
+        );
+    END COMPONENT;
+
     --------------------------------------------------------
     -- Functions
     --------------------------------------------------------
@@ -282,7 +294,12 @@ architecture rtl of bbc_micro_tang20k is
     -- Mem Controller Monior LEDs
     signal monitor_leds    :   std_logic_vector(5 downto 0);
 
+    signal i_test           : std_logic_vector(7 downto 0);
+
 begin
+
+    hs_o:OBUF port map (O => hsync_org, I => i_test(7));
+    ck27_o:OBUF port map (O => clock27_o, I => clock_27);
 
     --------------------------------------------------------
     -- BBC Micro Core
@@ -381,7 +398,7 @@ begin
             trace_sync     => trace_sync,
             trace_rstn     => trace_rstn,
             trace_phi2     => trace_phi2,
-            test           => open
+            test           => i_test
         );
 
     vid_mode       <= "0001" when IncludeHDMI else "0000";
