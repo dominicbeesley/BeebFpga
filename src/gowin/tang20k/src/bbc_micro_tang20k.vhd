@@ -296,6 +296,13 @@ architecture rtl of bbc_micro_tang20k is
 
     signal i_test           : std_logic_vector(7 downto 0);
 
+    signal hsync_ref : std_logic;
+    signal hsync_del : std_logic_vector(4 downto 0) := (others => '0');
+
+    signal clkdiv_reset_n  : std_logic := '0';
+    signal pll1_lock       : std_logic;
+    signal pll2_lock       : std_logic;
+
 begin
 
     hs_o:OBUF port map (O => hsync_org, I => i_test(7));
@@ -429,7 +436,7 @@ begin
             CLKOUTP  => clock_96_p,     -- 96MHz clock for PSRAM, phase shifted 90 degrees
             CLKOUTD  => clock_48,       -- 48MHz main clock
             CLKOUTD3 => open,
-            LOCK     => open,
+            LOCK     => pll1_lock,
             RESET    => '0',
             RESET_P  => '0',
             CLKFB    => '0',
@@ -455,7 +462,7 @@ begin
             CLKOUTP  => open,
             CLKOUTD  => open,
             CLKOUTD3 => open,
-            LOCK     => open,
+            LOCK     => pll2_lock,
             RESET    => '0',
             RESET_P  => '0',
             CLKFB    => '0',
@@ -473,11 +480,26 @@ begin
             GSREN => "false"
         )
         port map (
-            RESETN => '1',
+            RESETN => clkdiv_reset_n,
             HCLKIN => clock_135,
             CLKOUT => clock_27,         -- 27MHz HDMI Pixel Clock
             CALIB  => '1'
         );
+
+
+    hsync_ref <= i_test(7);
+    process(clock_135)
+    begin
+        if rising_edge(clock_135) then
+            -- Synchronise the core hsync signal and delay it a bit
+            hsync_del <= hsync_ref & hsync_del(hsync_del'left downto 1);
+            -- Release clkdiv reset shortly after the first falling edge of hsync_ref
+            if pll1_lock = '1' and pll2_lock = '1' and hsync_del(1) = '0' and hsync_del(0) = '1' then
+                clkdiv_reset_n <= '1';
+            end if;
+        end if;
+    end process;
+
 
     --------------------------------------------------------
     -- Button 1: Power Up Reset and Master/Beeb toggle
