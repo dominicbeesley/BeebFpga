@@ -67,6 +67,7 @@ entity bbc_micro_tang20k is
         sys_clk         : in    std_logic;
         btn1_n          : in    std_logic;     -- Toggle Master / Beeb modes
         btn2_n          : in    std_logic;     -- Toggle HDMI / DVI modes
+        btn3_n          : in    std_logic;
         led             : out   std_logic_vector (5 downto 0);
 
         -- Keyboard / Mouse
@@ -480,7 +481,7 @@ begin
             GSREN => "false"
         )
         port map (
-            RESETN => clkdiv_reset_n,
+            RESETN => clkdiv_reset_n and btn3_n,
             HCLKIN => clock_135,
             CLKOUT => clock_27,         -- 27MHz HDMI Pixel Clock
             CALIB  => '1'
