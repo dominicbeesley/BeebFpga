@@ -101,6 +101,8 @@ entity bbc_micro_tang20k is
 
         hsync_org       : out   std_logic;
         clock27_o       : out   std_logic;
+        hsync_del2_o    : out   std_logic;
+        hsync_del2_i    : in   std_logic;
 
         -- PT8211 DAC
         AUD_DACLRCK     : out   std_logic;
@@ -219,6 +221,42 @@ architecture rtl of bbc_micro_tang20k is
         );
     END COMPONENT;
 
+    COMPONENT BUFG
+    PORT(
+        O:OUT std_logic;
+        I:IN std_logic
+    );
+    END COMPONENT;
+
+    COMPONENT IODELAY
+    GENERIC (C_STATIC_DLY:integer:=0
+        );
+    PORT(
+        DO:OUT std_logic;
+        DF:OUT std_logic;
+        DI:IN std_logic;
+        SDTAP:IN std_logic;
+        SETN:IN std_logic;
+        VALUE:IN std_logic
+    );
+    END COMPONENT;
+
+    COMPONENT IBUF
+    PORT (
+        O:OUT std_logic;
+        I:IN std_logic
+    );
+    END COMPONENT;
+
+COMPONENT IOBUF
+ PORT (
+ O:OUT std_logic;
+ IO:INOUT std_logic;
+ I:IN std_logic;
+ OEN:IN std_logic
+ );
+END COMPONENT;
+
     --------------------------------------------------------
     -- Functions
     --------------------------------------------------------
@@ -304,10 +342,41 @@ architecture rtl of bbc_micro_tang20k is
     signal pll1_lock       : std_logic;
     signal pll2_lock       : std_logic;
 
+    signal r_db_clock_27    : std_logic;
+
+    signal i_db_phase_1      : std_logic_vector(7 downto 0);
+    signal i_db_phase_2      : std_logic_vector(7 downto 0);
+    signal i_db_phase_3      : std_logic_vector(7 downto 0);
+
+    signal i_hsync_del2      : std_logic;
+
+    signal i_crtc_hsync_del  : std_logic;
+    signal i_crtc_hsync_del2  : std_logic;
+    signal i_crtc_hsync_del3  : std_logic;
+
 begin
 
-    hs_o:OBUF port map (O => hsync_org, I => i_test(7));
+    hs_o:OBUF port map (O => hsync_org, I => i_test(6));
     ck27_o:OBUF port map (O => clock27_o, I => clock_27);
+
+    hs_del:IODELAY PORT MAP (
+        DI => i_test(6),
+        DO => i_hsync_del2,
+        SDTAP => i_db_phase_2(7),
+        SETN  => i_db_phase_2(6),
+        VALUE  => i_db_phase_2(0)
+    );
+
+    hsd2_o:OBUF port map (O => hsync_del2_o, I => i_hsync_del2);
+    hsd2_i:IBUF port map (O => i_crtc_hsync_del3, I => hsync_del2_i);
+
+    hs_del3:IODELAY PORT MAP (
+        DI => i_crtc_hsync_del3,
+        DO => i_crtc_hsync_del,
+        SDTAP => i_db_phase_2(7),
+        SETN  => i_db_phase_2(6),
+        VALUE  => i_db_phase_2(0)
+    );
 
     --------------------------------------------------------
     -- BBC Micro Core
@@ -406,7 +475,13 @@ begin
             trace_sync     => trace_sync,
             trace_rstn     => trace_rstn,
             trace_phi2     => trace_phi2,
-            test           => i_test
+            test           => i_test,
+
+            db_phase_1_o    => i_db_phase_1,
+            db_phase_2_o    => i_db_phase_2,
+            db_phase_3_o    => i_db_phase_3,
+
+            crtc_hsync_del_i=> i_crtc_hsync_del
         );
 
     vid_mode       <= "0001" when IncludeHDMI else "0000";
@@ -475,18 +550,48 @@ begin
             FDLY     => (others => '0')
         );
 
-    clkdiv5 : CLKDIV
-        generic map (
-            DIV_MODE => "5",            -- Divide by 5
-            GSREN => "false"
-        )
-        port map (
-            RESETN => clkdiv_reset_n and btn3_n,
-            HCLKIN => clock_135,
-            CLKOUT => clock_27,         -- 27MHz HDMI Pixel Clock
-            CALIB  => '1'
-        );
+--    clkdiv5 : CLKDIV
+--        generic map (
+--            DIV_MODE => "5",            -- Divide by 5
+--            GSREN => "false"
+--        )
+--        port map (
+--            RESETN => clkdiv_reset_n and btn3_n,
+--            HCLKIN => clock_135,
+--            CLKOUT => clock_27,         -- 27MHz HDMI Pixel Clock
+--            CALIB  => '1'
+--        );
 
+    clkdiv5: process(clock_135, clkdiv_reset_n)
+    variable v_ring:std_logic_vector(4 downto 0);
+    variable v_mask:std_logic_vector(4 downto 0);
+    begin
+        if clkdiv_reset_n = '0' then
+            v_ring := "11100";
+            r_db_clock_27 <= '0';
+        elsif rising_edge(clock_135) then
+            
+            v_ring := v_ring(0) & v_ring(v_ring'length-1 downto 1);
+            if (v_ring and v_mask) = "00000" then
+                r_db_clock_27 <= '0';
+            else
+                r_db_clock_27 <= '1';
+            end if;
+
+            case i_db_phase_1(2 downto 0) is 
+                when "000" =>   v_mask := "10000";
+                when "001" =>   v_mask := "01000";
+                when "010" =>   v_mask := "00100";
+                when "011" =>   v_mask := "00010";
+                when "100" =>   v_mask := "00001";
+                when others =>  v_mask := "00000";
+            end case;
+
+        end if;
+    end process;
+
+
+    e_bufg27:BUFG PORT MAP (I => r_db_clock_27, O => clock_27);
 
     hsync_ref <= i_test(7);
     process(clock_135)
@@ -702,6 +807,7 @@ begin
                 O  => tmds_d_p(2),
                 OB => tmds_d_n(2)
             );
+
 
     end generate;
 

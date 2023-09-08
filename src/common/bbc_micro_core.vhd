@@ -219,7 +219,13 @@ entity bbc_micro_core is
         tmds_b         : out   std_logic_vector(9 downto 0);
 
         -- Test outputs
-        test           : out   std_logic_vector(7 downto 0)
+        test           : out   std_logic_vector(7 downto 0);
+
+        db_phase_1_o   : out   std_logic_vector(7 downto 0);
+        db_phase_2_o   : out   std_logic_vector(7 downto 0);
+        db_phase_3_o   : out   std_logic_vector(7 downto 0);
+
+        crtc_hsync_del_i : in std_logic
 
     );
 end entity;
@@ -719,7 +725,19 @@ signal inton_enable    : std_logic;     -- 0xFE3C-0xFE3F
 
 signal vdu_op          : std_logic;     -- last opcode was 0xC000-0xDFFF
 
+-- phase debugging
+
+signal db_phase_enable  : std_logic;     -- 0xFE34-0xFE37
+
+signal r_db_phase_1     : std_logic_vector(7 downto 0);
+signal r_db_phase_2     : std_logic_vector(7 downto 0);
+signal r_db_phase_3     : std_logic_vector(7 downto 0);
+
 begin
+
+db_phase_1_o <= r_db_phase_1;
+db_phase_2_o <= r_db_phase_2;
+db_phase_3_o <= r_db_phase_3;
 
     -------------------------
     -- COMPONENT INSTANCES
@@ -1726,6 +1744,7 @@ begin
         acccon_enable <= '0';
         intoff_enable <= '0';
         inton_enable  <= '0';
+        db_phase_enable <= '0';
         if io_sheila = '1' then
             case cpu_a(7 downto 5) is
                 when "000" =>
@@ -1779,6 +1798,11 @@ begin
                     -- 0xFE60
                     user_via_enable <= '1';
 --              when "101" => adlc_enable <= '1';       -- 0xFEA0
+
+                -- db debug phase
+                when "101" =>
+                    db_phase_enable <= '1';
+ 
                 when "110" =>
                     -- 0xFEC0
                     if m128_mode = '1' then
@@ -1852,6 +1876,9 @@ begin
         -- Master 128 additions
         romsel         when romsel_enable = '1' and m128_mode = '1' else
         acccon         when acccon_enable = '1' and m128_mode = '1' else
+        r_db_phase_1   when db_phase_enable = '1' and cpu_a(1 downto 0) = "01" else
+        r_db_phase_2   when db_phase_enable = '1' and cpu_a(1 downto 0) = "10" else
+        r_db_phase_3   when db_phase_enable = '1' and cpu_a(1 downto 0) = "11" else
         "11111110"     when io_sheila = '1' else
         "11111111"     when io_fred = '1' or io_jim = '1' else
         (others => '0'); -- un-decoded locations are pulled down by RP1
@@ -2217,7 +2244,9 @@ begin
         b_out => vga0_b,
         is15k => open
     );
-    crtc_hsync_n <= not crtc_hsync;
+
+    --crtc_hsync_n <= not crtc_hsync;
+    crtc_hsync_n <= not crtc_hsync_del_i; -- db phase
     crtc_vsync_n <= not crtc_vsync;
 
 -----------------------------------------------
@@ -2237,7 +2266,8 @@ begin
         clk25 => clock_27,
         mode => mhz12_active,
         rgbi_in => rgbi_in,
-        hSync_in => crtc_hsync,
+        --hSync_in => crtc_hsync,
+        hSync_in => crtc_hsync_del_i, -- db phase
         vSync_in => crtc_vsync,
         rgbi_out => rgbi_out,
         hSync_out => vga1_hs,
@@ -2508,12 +2538,26 @@ begin
         if reset_n = '0' then
             acccon <= (others => '0');
             vdu_op <= '0';
+            r_db_phase_1 <= (others => '0');
+            r_db_phase_2 <= (others => '0');
+            r_db_phase_3 <= (others => '0');
         elsif rising_edge(clock_48) then
             if (cpu_clken = '1') then
                 -- Access Control Register 0xFE34
                 if acccon_enable = '1' and cpu_r_nw = '0' then
                     acccon <= cpu_do;
                 end if;
+
+                -- db phase control
+                if db_phase_enable = '1' and cpu_r_nw = '0' then
+                    case cpu_a(1 downto 0) is
+                        when "01" => r_db_phase_1 <= cpu_do;
+                        when "10" => r_db_phase_2 <= cpu_do;
+                        when "11" => r_db_phase_3 <= cpu_do;
+                        when others => null;
+                    end case;
+                end if;
+
                 -- vdu op indicates the last opcode fetch in 0xC000-0xDFFF and
                 -- the VDU driver is paged in (rather than Hazel RAM)
                 if cpu_sync = '1' then
@@ -2575,6 +2619,13 @@ begin
         trace_rstn <= '0';
         trace_phi2 <= '0';
     end generate;
+
+
+-----------------------------------------------
+-- Debug CRTC hsync phase registers
+-----------------------------------------------
+    
+
 
 
     -- Test output
