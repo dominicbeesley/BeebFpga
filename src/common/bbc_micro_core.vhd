@@ -733,6 +733,8 @@ signal r_db_phase_1     : std_logic_vector(7 downto 0);
 signal r_db_phase_2     : std_logic_vector(7 downto 0);
 signal r_db_phase_3     : std_logic_vector(7 downto 0);
 
+signal i_crtc_hsync_del_retimed : std_logic;
+
 begin
 
 db_phase_1_o <= r_db_phase_1;
@@ -2245,8 +2247,18 @@ db_phase_3_o <= r_db_phase_3;
         is15k => open
     );
 
+    -- resample / condition hsync from 48MHz to 27MHz domain
+
+    inst_hsmeta:entity work.hsync_meta
+    port map (
+        reset_i         => reset,
+        clock_dvi_i     => clock_27,
+        hsync_i         => crtc_hsync_del_i,
+        hsync_o         => i_crtc_hsync_del_retimed
+    );
+
     --crtc_hsync_n <= not crtc_hsync;
-    crtc_hsync_n <= not crtc_hsync_del_i; -- db phase
+    crtc_hsync_n <= not i_crtc_hsync_del_retimed; -- db phase
     crtc_vsync_n <= not crtc_vsync;
 
 -----------------------------------------------
@@ -2267,7 +2279,7 @@ db_phase_3_o <= r_db_phase_3;
         mode => mhz12_active,
         rgbi_in => rgbi_in,
         --hSync_in => crtc_hsync,
-        hSync_in => crtc_hsync_del_i, -- db phase
+        hSync_in => i_crtc_hsync_del_retimed, -- db phase
         vSync_in => crtc_vsync,
         rgbi_out => rgbi_out,
         hSync_out => vga1_hs,
