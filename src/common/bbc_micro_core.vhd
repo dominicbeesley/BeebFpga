@@ -60,6 +60,7 @@ entity bbc_micro_core is
         IncludeSPISD       : boolean := false;
         IncludeSID         : boolean := false;
         IncludeMusic5000   : boolean := false;
+        IncludeBeebWifi    : boolean := false;
         IncludeICEDebugger : boolean := false;
         IncludeCoPro6502   : boolean := false; -- The three co pro options
         IncludeCoProSPI    : boolean := false; -- are currently mutually exclusive
@@ -646,6 +647,7 @@ signal sid_enable       :   std_logic;
 signal music5000_ao_l   :   std_logic_vector(15 downto 0);
 signal music5000_ao_r   :   std_logic_vector(15 downto 0);
 signal music5000_do     :   std_logic_vector(7 downto 0);
+signal music5000_do_oel :   std_logic;
 
 -- Optional Tube
 signal tube_do          :   std_logic_vector(7 downto 0);
@@ -1230,6 +1232,7 @@ begin
                 a        => cpu_a(7 downto 0),
                 din      => cpu_do,
                 dout     => music5000_do,
+                dout_oel => music5000_do_oel,
                 audio_l  => music5000_ao_l,
                 audio_r  => music5000_ao_r
             );
@@ -1847,7 +1850,7 @@ begin
         spisd_do       when spisd_enable = '1' else
         -- Optional peripherals
         sid_do         when sid_enable = '1' and IncludeSid else
-        music5000_do   when io_jim = '1' and IncludeMusic5000 else
+        music5000_do   when music5000_do_oel = '0' and io_jim = '1' and IncludeMusic5000 else
         tube_do        when int_tube_enable = '1' and (IncludeCoPro6502 or IncludeCoProSPI) else
         ext_tube_do    when ext_tube_enable = '1' and IncludeCoProExt else
         -- Master 128 additions
