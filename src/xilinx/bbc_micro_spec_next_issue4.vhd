@@ -56,7 +56,8 @@ entity bbc_micro_spec_next_issue4 is
         IncludeAMXMouse    : boolean := true;
         IncludeSPISD       : boolean := true;
         IncludeSID         : boolean := true;
-        IncludeMusic5000   : boolean := true;
+        IncludeMusic5000   : boolean := false;
+        IncludeBeebWifi    : boolean := true;
         IncludeICEDebugger : boolean := true;
         IncludeCoPro6502   : boolean := true;
         IncludeCoProExt    : boolean := true;
@@ -281,6 +282,7 @@ begin
         IncludeSPISD       => IncludeSPISD,
         IncludeSID         => IncludeSID,
         IncludeMusic5000   => IncludeMusic5000,
+        IncludeBeebWifi    => IncludeBeebWifi,
         IncludeICEDebugger => IncludeICEDebugger,
         IncludeCoPro6502   => IncludeCoPro6502,
         IncludeCoProSPI    => false,
@@ -369,7 +371,12 @@ begin
         tmds_b         => tmds_b,
 
         -- config
-        config         => yellow_config_ps2
+        config         => yellow_config_ps2,
+
+        -- beeb WiFi
+
+        esp_rx_i       => esp_rx_i,
+        esp_tx_o       => esp_tx_o
 
     );
 
@@ -607,7 +614,7 @@ begin
 
             -- Overlay write-only config registers in config mode only at &2FFx
             config_reset <= '0';
-            if config_mode = '1' and ('0' & RAM_A(18 downto 4)) = x"62FF" and RAM_nCS = '0' and RAM_nWE = '0' then
+            if config_mode = '1' and ('0' & RAM_A(18 downto 4)) = x"1AFF" and RAM_nCS = '0' and RAM_nWE = '0' then
                 case RAM_A(3 downto 0) is
 					when x"0" =>
                         vid_mode <= RAM_Din(3 downto 0);
@@ -854,8 +861,6 @@ begin
     -- ESP 8266 module
     esp_gpio0_io   <= 'Z';
     esp_gpio2_io   <= 'Z';
-    esp_tx_o       <= '1';
-    esp_cts_n_o    <= '1';
 
     -- Addtional flash pins; used at IO2 and IO3 in Quad SPI Mode
     flash_hold_o   <= '1';

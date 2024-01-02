@@ -221,7 +221,13 @@ entity bbc_micro_core is
         hsync_ref      : out   std_logic;
 
         -- Test outputs
-        test           : out   std_logic_vector(7 downto 0)
+        test           : out   std_logic_vector(7 downto 0);
+
+        -- beeb WiFi
+
+        esp_rx_i       : in    std_logic;
+        esp_tx_o       : out   std_logic
+
 
     );
 end entity;
@@ -370,6 +376,29 @@ component Music5000 is
     );
 end component;
 
+component BeebWifi is
+    generic (
+        id       : std_logic_vector(7 downto 0) := x"A0"
+    );
+    port (
+        -- This is the cpu clock
+        clk      : in     std_logic;
+        clken    : in     std_logic;
+        -- This is the 6MHz audio clock
+        rnw      : in     std_logic;
+        rst_n    : in     std_logic;
+        pgfc_n   : in     std_logic;
+        pgfd_n   : in     std_logic;
+        a        : in     std_logic_vector (7 downto 0);
+        din      : in     std_logic_vector (7 downto 0);
+        dout     : out    std_logic_vector (7 downto 0);
+        dout_oel : out    std_logic;
+
+        jimsel   : out    std_logic;
+        jimpage  : out    std_logic_vector(8 downto 0)
+
+    );
+end component;
 
 -- Use 4-bit RGB when VideoNuLA is included, other 1-bit RGB
 function calc_rgb_width(includeVideoNuLA : boolean) return integer is
@@ -648,6 +677,12 @@ signal music5000_ao_l   :   std_logic_vector(15 downto 0);
 signal music5000_ao_r   :   std_logic_vector(15 downto 0);
 signal music5000_do     :   std_logic_vector(7 downto 0);
 signal music5000_do_oel :   std_logic;
+
+-- Optional BeebWifi
+signal beebwifi_do      :   std_logic_vector(7 downto 0);
+signal beebwifi_do_oel  :   std_logic;
+signal beebwifi_page    :   std_logic_vector(8 downto 0);
+signal beebWifi_jimsel  :   std_logic;
 
 -- Optional Tube
 signal tube_do          :   std_logic_vector(7 downto 0);
@@ -1239,6 +1274,29 @@ begin
 
     end generate;
 
+--------------------------------------------------------
+-- Optional BeebWifi
+--------------------------------------------------------
+
+    Optional_BeebWifi: if IncludeBeebWifi generate
+
+        Inst_BeebWifi: component BeebWifi
+            port map (
+                clk      => clock_48,
+                clken    => mhz1_clken,
+                rnw      => cpu_r_nw,
+                rst_n    => reset_n,
+                pgfc_n   => io_fred_n,
+                pgfd_n   => io_jim_n,
+                a        => cpu_a(7 downto 0),
+                din      => cpu_do,
+                dout     => beebwifi_do,
+                dout_oel => beebwifi_do_oel,
+                jimsel   => beebWifi_jimsel,
+                jimpage  => beebwifi_page
+            );
+
+    end generate;
 
 --------------------------------------------------------
 -- Optional 6502 Co Processor
@@ -1850,7 +1908,13 @@ begin
         spisd_do       when spisd_enable = '1' else
         -- Optional peripherals
         sid_do         when sid_enable = '1' and IncludeSid else
-        music5000_do   when music5000_do_oel = '0' and io_jim = '1' and IncludeMusic5000 else
+        music5000_do   when music5000_do_oel = '0' and io_jim = '1' and IncludeMusic5000 else        
+
+        --BeebWiFi JIM data comes from top of external RAM
+        cpu_mem_data   when beebWifi_jimsel = '1' and io_jim = '1' and IncludeBeebWifi and m128_mode = '0' else
+        --BeebWiFi registers (not JIM)
+        beebwifi_do    when beebwifi_do_oel = '0' and IncludeBeebWifi else 
+
         tube_do        when int_tube_enable = '1' and (IncludeCoPro6502 or IncludeCoProSPI) else
         ext_tube_do    when ext_tube_enable = '1' and IncludeCoProExt else
         -- Master 128 additions
@@ -1880,9 +1944,9 @@ begin
     -- 000 11xx xxxx xxxx xxxx = ROM Slot 3
     -- 001 00xx xxxx xxxx xxxx = MOS 3.20 (OS 1.20)
     -- 001 01xx xxxx xxxx xxxx = unused
-    -- 001 10xx xxxx xxxx xxxx = unused
-    -- 001 11xx xxxx xxxx xxxx = unused
-    -- 010 00xx xxxx xxxx xxxx = ROM Slot 8 (8000-B5FF)
+    -- 001 10xx xxxx xxxx xxxx = Main memory
+    -- 001 11xx xxxx xxxx xxxx = Main memory
+    -- 010 00xx xxxx xxxx xxxx = ROM Slot 8 
     -- 010 01xx xxxx xxxx xxxx = ROM Slot 9
     -- 010 10xx xxxx xxxx xxxx = ROM Slot A
     -- 010 11xx xxxx xxxx xxxx = ROM Slot B
@@ -1899,17 +1963,17 @@ begin
     -- 101 01xx xxxx xxxx xxxx = RAM Slot 5
     -- 101 10xx xxxx xxxx xxxx = RAM Slot 6
     -- 101 11xx xxxx xxxx xxxx = RAM Slot 7
-    -- 110 00xx xxxx xxxx xxxx = Main memory
-    -- 110 01xx xxxx xxxx xxxx = Main memory
-    -- 110 1000 xxxx xxxx xxxx = Private RAM (4K, at 8000-8FFF)       (unused in Beeb Mode)
-    -- 110 1001 xxxx xxxx xxxx = Filing System RAM (4K, at C000-CFFF) (unused in Beeb Mode)
-    -- 110 1010 xxxx xxxx xxxx = Filing System RAM (4K, at D000-DFFF) (unused in Beeb Mode)
-    -- 110 1011 xxxx xxxx xxxx = Shadow memory (4K, at 3000-3FFF)     (unused in Beeb Mode)
-    -- 110 11xx xxxx xxxx xxxx = Shadow memory (16K, at 4000-7FFF)    (unused in Beeb Mode)
-    -- 111 00xx xxxx xxxx xxxx = RAM Slot 8 (B600-BFFF)
-    -- 111 01xx xxxx xxxx xxxx = unused
-    -- 111 10xx xxxx xxxx xxxx = unused
-    -- 111 11xx xxxx xxxx xxxx = unused
+    -- 110 00xx xxxx xxxx xxxx = unused                               (BeebWifi)
+    -- 110 01xx xxxx xxxx xxxx = unused                               (BeebWifi)
+    -- 110 1000 xxxx xxxx xxxx = Private RAM (4K, at 8000-8FFF)       (BeebWifi)
+    -- 110 1001 xxxx xxxx xxxx = Filing System RAM (4K, at C000-CFFF) (BeebWifi)
+    -- 110 1010 xxxx xxxx xxxx = Filing System RAM (4K, at D000-DFFF) (BeebWifi)
+    -- 110 1011 xxxx xxxx xxxx = Shadow memory (4K, at 3000-3FFF)     (BeebWifi)
+    -- 110 11xx xxxx xxxx xxxx = Shadow memory (16K, at 4000-7FFF)    (BeebWifi)
+    -- 111 00xx xxxx xxxx xxxx = unused                               (BeebWifi)
+    -- 111 01xx xxxx xxxx xxxx = unused                               (BeebWifi)
+    -- 111 10xx xxxx xxxx xxxx = unused                               (BeebWifi)
+    -- 111 11xx xxxx xxxx xxxx = unused                               (BeebWifi)
 
     process(clock_48,hard_reset_n)
     begin
@@ -1934,10 +1998,14 @@ begin
                 -- Fetch data from previous display cycle
                 if m128_mode = '1' then
                     -- Master 128
-                    ext_A <= "110" & acc_d & display_a;
+                    if acc_d = '1' then
+                        ext_A <= "1101" & display_a;
+                    else
+                        ext_A <= "0011" & display_a;
+                    end if;
                 else
                     -- Model B
-                    ext_A <= "1100" & display_a;
+                    ext_A <= "0011" & display_a;
                 end if;
                 ext_nCS <= '0';
             elsif tube_mem_cycle = '1' and IncludeCoPro6502 then
@@ -1970,17 +2038,28 @@ begin
                                 ext_nWE_long <= cpu_r_nw;
                                 ext_nOE <= not cpu_r_nw;
                             when others =>
+---                                if m128_mode = '0' and romsel(3 downto 0) = "1000" and cpu_a(13 downto 8) >= "110110" then
+---                                    -- ROM slot 8 >= B600 is mapped to RAM for
+---                                    -- the SWRam version of MMFS in Beeb mode only
+---                                    ext_A <= "11100" & cpu_a(13 downto 0);
+---                                    ext_nWE <= not ((not cpu_r_nw) and mem_write_strobe);
+---                                    ext_nWE_long <= cpu_r_nw;
+---                                    ext_nOE <= not cpu_r_nw;
+---                                else
+---                                    -- ROM slots 8,9,A,B,C,D,E,F are in ROM
+---                                    ext_A <= "01" & romsel(2 downto 0) & cpu_a(13 downto 0);
+---                                end if;
+
+--DB:TODO:Check with Hoglet, just use top bank #8 as R/W for MMFS, frees up 128K at top of memory in non Master mode for Wifi
+
                                 if m128_mode = '0' and romsel(3 downto 0) = "1000" and cpu_a(13 downto 8) >= "110110" then
-                                    -- ROM slot 8 >= B600 is mapped to RAM for
-                                    -- the SWRam version of MMFS in Beeb mode only
-                                    ext_A <= "11100" & cpu_a(13 downto 0);
                                     ext_nWE <= not ((not cpu_r_nw) and mem_write_strobe);
                                     ext_nWE_long <= cpu_r_nw;
                                     ext_nOE <= not cpu_r_nw;
-                                else
-                                    -- ROM slots 8,9,A,B,C,D,E,F are in ROM
-                                    ext_A <= "01" & romsel(2 downto 0) & cpu_a(13 downto 0);
                                 end if;
+                                -- ROM slots 8,9,A,B,C,D,E,F are in ROM
+                                ext_A <= "01" & romsel(2 downto 0) & cpu_a(13 downto 0);
+
                         end case;
                         -- If bit 6 if ACCCON (&FE34) is set, make the ROMs writeable
                         if acc_tst = '1' then
@@ -2006,8 +2085,13 @@ begin
                         ext_A   <= "1101" & cpu_a(14 downto 0);
                     else
                         -- Main RAM
-                        ext_A   <= "1100" & cpu_a(14 downto 0);
+                        ext_A   <= "0011" & cpu_a(14 downto 0);
                     end if;
+                    ext_nWE <= not ((not cpu_r_nw) and mem_write_strobe);
+                    ext_nWE_long <= cpu_r_nw;
+                    ext_nOE <= not cpu_r_nw;
+                elsif m128_mode = '0' and IncludeBeebWifi and beebWifi_jimsel = '1' and io_jim = '1' then
+                    ext_A   <= "11" & beebwifi_page & cpu_a(7 downto 0);
                     ext_nWE <= not ((not cpu_r_nw) and mem_write_strobe);
                     ext_nWE_long <= cpu_r_nw;
                     ext_nOE <= not cpu_r_nw;

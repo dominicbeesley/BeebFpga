@@ -62,3 +62,4 @@ firmware/version.asm
 **/impl/temp
 
 **/vunit_out
+firmware/config.lst

@@ -2,7 +2,10 @@
 
 PATH=/opt/Xilinx/14.7/ISE_DS/ISE/bin/lin64:$PATH
 
-UPDATEMEM=/tools/Xilinx/Vivado/2023.1/bin/updatemem
+UPDATEMEM=$(which updatemem)
+if [[ -z "$UPDATEMEM" ]]; then
+    UPDATEMEM=/tools/Xilinx/Vivado/2023.1/bin/updatemem
+fi
 
 # Lookup the last commit ID
 GITVERSION="$(git rev-parse --short HEAD)"
@@ -257,7 +260,7 @@ mkdir -p $DIR
 pushd firmware
 
 echo EQUB \"Version: $BUILD $GITVERSION\" > version.asm
-beebasm -v -i config.asm -o config.rom
+beebasm -v -i config.asm -o config.rom > config.lst
 od -An -tx1 -w16 -v config.rom > config.mem
 popd
 
