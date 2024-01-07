@@ -1,4 +1,4 @@
-set_property BITSTREAM.CONFIG.USERID 0x19811201 [current_design]
+set_property BITSTREAM.CONFIG.USERID 32'h19811201 [current_design]
 
 create_clock -period 20.000 [get_ports clock_50_i]
 
@@ -8,7 +8,10 @@ create_clock -period 20.000 [get_ports clock_50_i]
 #   hclk0 is the 27MHz domain
 #   hclk1 is the 135MHz domain
 
-set_clock_groups -name async_clk1_hclk01 -asynchronous -group {clk1} -group {hclk0 hclk1}
+set_clock_groups -name async_clk1_hclk01 -asynchronous -group clk1 -group {hclk0 hclk1}
+
+#ignore timing paths from the main to the baud rate generator clock
+
 
 set_property CFGBVS VCCO [current_design]
 set_property CONFIG_VOLTAGE 3.3 [current_design]
@@ -642,8 +645,8 @@ set_property PULLUP true [get_ports bus_int_n_o]
 set_property PACKAGE_PIN T11 [get_ports esp_cts_n_o]
 set_property IOSTANDARD LVCMOS33 [get_ports esp_cts_n_o]
 set_property DRIVE 4 [get_ports esp_cts_n_o]
-set_property PACKAGE_PIN R11 [get_ports esp_rtr_n_i]
-set_property IOSTANDARD LVCMOS33 [get_ports esp_rtr_n_i]
+set_property PACKAGE_PIN R11 [get_ports esp_rts_n_i]
+set_property IOSTANDARD LVCMOS33 [get_ports esp_rts_n_i]
 set_property PACKAGE_PIN J13 [get_ports adc_control_o]
 set_property IOSTANDARD LVCMOS33 [get_ports adc_control_o]
 set_property DRIVE 4 [get_ports adc_control_o]
@@ -694,12 +697,6 @@ set_property IOSTANDARD LVCMOS33 [get_ports extras_o]
 set_property DRIVE 4 [get_ports extras_o]
 set_property PULLUP true [get_ports extras_o]
 
-set_property OFFCHIP_TERM NONE [get_ports audioext_l_o]
-set_property OFFCHIP_TERM NONE [get_ports audioext_r_o]
-set_property OFFCHIP_TERM NONE [get_ports ps2_clk_io]
-set_property OFFCHIP_TERM NONE [get_ports ps2_data_io]
-set_property OFFCHIP_TERM NONE [get_ports ps2_pin2_io]
-set_property OFFCHIP_TERM NONE [get_ports ps2_pin6_io]
 set_property BITSTREAM.GENERAL.XADCENHANCEDLINEARITY ON [current_design]
 set_property BITSTREAM.CONFIG.CONFIGRATE 40 [current_design]
 set_property BITSTREAM.CONFIG.SPI_32BIT_ADDR YES [current_design]
@@ -714,4 +711,11 @@ set_property BITSTREAM.CONFIG.M2PIN PULLNONE [current_design]
 set_property BITSTREAM.CONFIG.PROGPIN PULLNONE [current_design]
 set_property CONFIG_MODE SPIx4 [current_design]
 
-set_property BMM_INFO_DESIGN spec_next_issue4_config_master_bd.bmm [current_design]
+
+set_property OFFCHIP_TERM NONE [get_ports audioext_l_o]
+set_property OFFCHIP_TERM NONE [get_ports audioext_r_o]
+set_property OFFCHIP_TERM NONE [get_ports ps2_clk_io]
+set_property OFFCHIP_TERM NONE [get_ports ps2_data_io]
+set_property OFFCHIP_TERM NONE [get_ports ps2_pin2_io]
+set_property OFFCHIP_TERM NONE [get_ports ps2_pin6_io]
+create_generated_clock -name i_esp_clk_brg -source [get_pins inst_PLL1/CLKOUT1] -divide_by 26 [get_nets i_esp_clk_brg]

@@ -226,7 +226,10 @@ entity bbc_micro_core is
         -- beeb WiFi
 
         esp_rx_i       : in    std_logic;
-        esp_tx_o       : out   std_logic
+        esp_tx_o       : out   std_logic;
+        esp_cts_n_o    : out    std_logic;
+        esp_rts_n_i    : in     std_logic;
+        bwifi_clk_brg_i: in    std_logic
 
 
     );
@@ -378,24 +381,32 @@ end component;
 
 component BeebWifi is
     generic (
-        id       : std_logic_vector(7 downto 0) := x"A0"
+        -- id is the value that must be written to &FCFF to unlock 
+        --    the JIM interface
+        id       : std_logic_vector(7 downto 0) := x"A0";
+        fred_base: std_logic_vector(7 downto 4) := x"5" -- base address in fred workspace (top nybble)
     );
     port (
         -- This is the cpu clock
-        clk      : in     std_logic;
-        clken    : in     std_logic;
-        -- This is the 6MHz audio clock
-        rnw      : in     std_logic;
-        rst_n    : in     std_logic;
-        pgfc_n   : in     std_logic;
-        pgfd_n   : in     std_logic;
-        a        : in     std_logic_vector (7 downto 0);
-        din      : in     std_logic_vector (7 downto 0);
-        dout     : out    std_logic_vector (7 downto 0);
-        dout_oel : out    std_logic;
+        clk             : in     std_logic;
+        clken           : in     std_logic;
+        rnw             : in     std_logic;
+        rst_n           : in     std_logic;
+        pgfc_n          : in     std_logic;
+        pgfd_n          : in     std_logic;
+        a               : in     std_logic_vector (7 downto 0);
+        din             : in     std_logic_vector (7 downto 0);
+        dout            : out    std_logic_vector (7 downto 0);
+        dout_oel        : out    std_logic;
 
-        jimsel   : out    std_logic;
-        jimpage  : out    std_logic_vector(8 downto 0)
+        jimsel          : out    std_logic;
+        jimpage         : out    std_logic_vector(8 downto 0);
+
+        esp_rx_i        : in     std_logic;
+        esp_tx_o        : out    std_logic;
+        esp_cts_n_o     : out    std_logic;
+        esp_rts_n_i     : in     std_logic;
+        bwifi_clk_brg_i : in     std_logic
 
     );
 end component;
@@ -1293,7 +1304,14 @@ begin
                 dout     => beebwifi_do,
                 dout_oel => beebwifi_do_oel,
                 jimsel   => beebWifi_jimsel,
-                jimpage  => beebwifi_page
+                jimpage  => beebwifi_page,
+
+                esp_rx_i => esp_rx_i,
+                esp_tx_o => esp_tx_o,
+                esp_cts_n_o => esp_cts_n_o,
+                esp_rts_n_i => esp_rts_n_i,
+
+                bwifi_clk_brg_i => bwifi_clk_brg_i
             );
 
     end generate;
@@ -1739,7 +1757,7 @@ begin
 
     -- FRED address demux
     -- Optional peripherals are mapped to fred and/or Jim
-    -- 0xFC20 - 0xFEFF = SID
+    -- 0xFC20 - 0xFC3F = SID
     process(cpu_a,io_fred)
     begin
         -- All regions normally de-selected

@@ -98,7 +98,7 @@ entity bbc_micro_spec_next_issue4 is
         esp_cts_n_o           : out   std_logic;
         esp_gpio0_io          : inout std_logic;
         esp_gpio2_io          : inout std_logic;
-        esp_rtr_n_i           : in    std_logic;
+        esp_rts_n_i           : in    std_logic;
         esp_rx_i              : in    std_logic;
         esp_tx_o              : out   std_logic;
         flash_cs_n_o          : out   std_logic;
@@ -261,6 +261,11 @@ architecture rtl of bbc_micro_spec_next_issue4 is
     signal config_remap    : std_logic := '0';
     signal config_reset    : std_logic := '0';
 
+    -- esp debug tap
+    signal i_esp_tx_o      : std_logic;
+    signal i_clk_brg       : std_logic;
+    signal i_esp_clk_brg   : std_logic; -- 16x baud rate generator clock for 115,200
+
 begin
 
 --------------------------------------------------------
@@ -376,9 +381,14 @@ begin
         -- beeb WiFi
 
         esp_rx_i       => esp_rx_i,
-        esp_tx_o       => esp_tx_o
+        esp_tx_o       => i_esp_tx_o,
+        esp_cts_n_o    => esp_cts_n_o,
+        esp_rts_n_i    => esp_rts_n_i,
+        bwifi_clk_brg_i=> i_esp_clk_brg
 
     );
+
+    esp_tx_o <= i_esp_tx_o;
 
     -- The copro_ext setting is only relevant to the model b
     copro_mode <= '1' when IncludeMaster or config_mode = '1' else (copro(0) or copro(1));
@@ -536,6 +546,34 @@ begin
         port map (
             I => hclk2,
             O => clock_135_n
+            );
+
+--------------------------------------------------------
+-- Baud rate generator clock
+--------------------------------------------------------
+
+    -- rough and ready clock for baud rate generator
+    p_clk_brh:process(clock_48, hard_reset_n)
+    variable v_ctr:unsigned(3 downto 0);
+    begin
+        if hard_reset_n = '0' then
+            v_ctr := (others => '0');
+            i_clk_brg <= '0';
+        elsif rising_edge(clock_48) then
+            if v_ctr = 12 then
+                i_clk_brg <= not (i_clk_brg);
+                v_ctr := (others => '0');
+            else
+                v_ctr := v_ctr + 1;
+            end if;
+        end if;
+    end process;
+
+
+    inst_brg_buf : BUFG
+        port map (
+            I => i_clk_brg,
+            O => i_esp_clk_brg
             );
 
 
@@ -853,7 +891,7 @@ begin
     bus_ramcs_io   <= 'Z';
     bus_rd_n_io    <= 'Z';
     bus_rfsh_n_o   <= 'Z';
-    bus_rst_n_io   <= 'Z';
+    bus_rst_n_io   <= hard_reset_n;
     bus_wr_n_o     <= 'Z';
     bus_int_n_o    <= 'Z';
     bus_y_o        <= 'Z';
@@ -870,7 +908,7 @@ begin
     i2c_sda_io <= 'Z';
 
     -- Pin 7 on the joystick connecter
-    joyp7_o    <= avr_TxD when IncludeICEDebugger and vid_debug = '1' else '1';
+    joyp7_o    <= avr_TxD when IncludeICEDebugger and vid_debug = '1' else i_esp_tx_o;
 
     -- Controls a mux to select between two joystick ports
     joysel_o   <= joy_counter(joy_counter'high);
