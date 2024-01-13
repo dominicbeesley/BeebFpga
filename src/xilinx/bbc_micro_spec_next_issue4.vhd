@@ -908,7 +908,7 @@ begin
     i2c_sda_io <= 'Z';
 
     -- Pin 7 on the joystick connecter
-    joyp7_o    <= avr_TxD when IncludeICEDebugger and vid_debug = '1' else i_esp_tx_o;
+    joyp7_o    <= avr_TxD when IncludeICEDebugger and vid_debug = '1' else esp_rx_i and i_esp_tx_o;
 
     -- Controls a mux to select between two joystick ports
     joysel_o   <= joy_counter(joy_counter'high);
