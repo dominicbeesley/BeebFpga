@@ -5,11 +5,16 @@
 --              Copyright 2016
 
 library IEEE;
-use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.STD_LOGIC_ARITH.ALL;
-use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use ieee.std_logic_1164.all;
+use ieee.std_logic_unsigned.all;
+use ieee.numeric_std.all;
 
 entity quadrature_fsm is
+generic (
+        DIV_FACTOR : natural := 1; -- number of bits of dpi to ignore
+        ACC_SIZE   : natural := 10;
+        ACC_MAX    : positive := 200
+    );
 port (
     clk  : in std_logic;
     rst  : in std_logic;
@@ -22,63 +27,84 @@ port (
 end quadrature_fsm;
 
 architecture Behavioral of quadrature_fsm is
-type quad_state is
-(
-   idle, count1, count2
-);
-signal state   : quad_state := idle;
-signal dir     : std_logic;
-signal count   : std_logic_vector(7 downto 0);
-signal delay   : std_logic_vector(15 downto 0);
-signal a       : std_logic;
-signal b       : std_logic;
+
+  signal r_accumulator  : signed(ACC_SIZE-1 downto 0);
+  signal i_sinc         : signed(8 downto 0);
+  signal r_delay        : unsigned(15-DIV_FACTOR downto 0);
+
+  signal r_phase        : unsigned(DIV_FACTOR+1 downto 0);
+
+  -- signal from phase to acc processes
+  signal r_incdec_req   : std_logic;
+  signal r_incdec_ack   : std_logic;
+
 begin
-    process(clk, rst) begin
-        if (rst = '1') then
-            state <= idle;
-            a     <= '0';
-            b     <= '0';
-            dir   <= '0';
-        elsif (rising_edge(clk)) then
-            case state is
-                when idle =>
-                    if load = '1' and inc /= x"00" then
-                        state <= count1;
-                        count <= inc;
-                        dir   <= sign;
-                        delay <= (others => '1');
-                    end if;
-                when count1 =>
-                    delay <= delay - 1;
-                    if delay = 0 then
-                        if dir = '1' then
-                            b <= not b;
-                            -- inc is negative, so increase
-                            count <= count + 1;
-                        else
-                            a <= not a;
-                            -- inc is positive, so decrease
-                            count <= count - 1;
-                        end if;                        
-                        state <= count2;
-                    end if;
-                when count2 =>
-                    delay <= delay - 1;
-                    if delay = 0 then
-                        if dir = '1' then
-                            a <= not a;
-                        else
-                            b <= not b;
-                        end if;                        
-                        if count = x"00" then
-                            state <= idle;
-                        else
-                            state <= count1;
-                        end if;
-                    end if;
-            end case;
+
+  i_sinc <= signed(sign & inc);
+
+  p_acc:process(rst,clk)
+  begin
+    if rst = '1' then
+      r_accumulator <= to_signed(0, r_accumulator'length);
+      r_incdec_ack <= '0';
+    elsif rising_edge(clk) then
+      if load = '1' then
+        if (sign = '1' and to_integer(r_accumulator) > -ACC_MAX) or
+           (sign = '0' and to_integer(r_accumulator) < ACC_MAX) then
+           r_accumulator <= r_accumulator + i_sinc;
         end if;
-    end process;
-    ao <= a;
-    bo <= b;
+      elsif r_incdec_req /= r_incdec_ack then
+        
+        if r_accumulator > 0 then
+          r_accumulator <= r_accumulator - 1;
+        elsif r_accumulator < 0 then
+          r_accumulator <= r_accumulator + 1;
+        end if;
+
+        r_incdec_ack <= r_incdec_req;
+      end if;
+    end if;
+
+  end process;
+  
+  p_phase:process(rst, clk)
+  begin
+    if rst = '1' then
+      r_delay <= (others => '0');
+      r_incdec_req <= '0';
+      r_phase <= (others => '0');
+      ao <= '0';
+      bo <= '0';
+    elsif rising_edge(clk) then
+      if r_delay = 0 then
+        if r_accumulator > 0 then
+          r_phase <= r_phase + 1;
+        elsif r_accumulator < 0 then
+          r_phase <= r_phase - 1;
+        end if;
+
+        case std_logic_vector(r_phase(r_phase'high downto r_phase'high -1)) is
+          when "01" =>
+            ao <= '1';
+            bo <= '0';
+          when "10" =>
+            ao <= '1';
+            bo <= '1';
+          when "11" =>
+            ao <= '0';
+            bo <= '1';
+          when others =>
+            ao <= '0';
+            bo <= '0';
+        end case;
+
+        r_incdec_req <= not r_incdec_req;
+          
+      end if;
+
+      r_delay <= r_delay - 1;
+    end if;
+  end process;
+
+
 end;
