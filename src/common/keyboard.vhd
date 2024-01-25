@@ -112,7 +112,7 @@ signal fn_keys_last :   std_logic_vector(9 downto 0);
 
 constant LED_CTR_MAX : natural := integer(MainClockSpeed / LEDUpdateSpeed) - 1;
 signal   r_led_ctr   : unsigned(ceil_log2(LED_CTR_MAX) downto 0);
-signal   i_cur_leds  : std_logic_vector(2 downto 0);
+signal   r_next_leds : std_logic_vector(2 downto 0);
 signal   r_cur_leds  : std_logic_vector(2 downto 0);
 
 signal   i_keyb_write_ack : std_logic; -- '1' when our write has been ack'd (write asserted and busy deasserted)
@@ -144,7 +144,6 @@ begin
     i_keyb_write_ack <= i_keyb_write and not KEYB_BUSY;
     KEYB_WRITE <= i_keyb_write;
 
-    i_cur_leds <= LED_CAPS & LED_SHIFT & LED_MOTOR;
 
     rst <= not nRESET;
 
@@ -223,6 +222,7 @@ begin
                     when get_id2 =>
                         if keyb_valid = '1' then
                             if keyb_data = x"83" then
+                                r_cur_leds <= LED_CAPS & LED_SHIFT & LED_MOTOR;
                                 state <= update_leds;
                             else
                                 state <= protocol_error;
@@ -250,7 +250,6 @@ begin
                         WR(x"ED", update_led_ack);
 
                     when update_led_ack =>
-                        r_cur_leds <= i_cur_leds;
                         if r_led_ctr(r_led_ctr'high) = '1' then
                             state <= enabled;
                             r_led_ctr <= to_unsigned(LED_CTR_MAX, r_led_ctr'length);
@@ -269,11 +268,14 @@ begin
                         WR("00000" & r_cur_leds, enabled);
 
                     when enabled =>
+                        r_next_leds <= r_next_leds or (LED_CAPS & LED_SHIFT & LED_MOTOR);
                         if r_led_ctr(r_led_ctr'high) = '1' then
-                            r_led_ctr <= to_unsigned(LED_CTR_MAX, r_led_ctr'length);
-                            if r_cur_leds /= i_cur_leds then
+                            r_led_ctr <= to_unsigned(LED_CTR_MAX, r_led_ctr'length);                            
+                            if r_cur_leds /= r_next_leds then
                                 state <= update_leds;
+                                r_cur_leds <= r_next_leds;
                             end if;
+                            r_next_leds <= (others => '0');
                         else
                             r_led_ctr <= r_led_ctr - 1;
                         end if;
@@ -287,6 +289,9 @@ begin
 
                 end case;
             end if;
+
+
+
         end if;
     end process;
 
