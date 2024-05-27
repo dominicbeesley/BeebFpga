@@ -62,3 +62,5 @@ firmware/version.asm
 **/impl/temp
 
 **/vunit_out
+*.sublime-project
+*.sublime-workspace
