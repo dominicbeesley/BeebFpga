@@ -65,3 +65,5 @@ firmware/version.asm
 
 /firmware/config.lst
 /src/common/BeebWifi/gh_16550
+*.sublime-project
+*.sublime-workspace
