@@ -237,7 +237,7 @@ architecture rtl of bbc_micro_tang_primer25k is
 
     signal powerup_reset_n : std_logic := '0';
     signal hard_reset_n    : std_logic;
-    signal reset_counter   : std_logic_vector(RESETBITS downto 0);
+    signal reset_counter   : std_logic_vector(RESETBITS downto 0) := (others => '0');
 
     signal ext_A_stb       : std_logic;
     signal ext_A           : std_logic_vector (18 downto 0);
