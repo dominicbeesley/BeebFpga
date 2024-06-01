@@ -83,10 +83,17 @@ architecture rtl of mem_tang_25k is
 
     signal r_mem_rom : mem_mos_t := MEM_INIT_FILE(PRJ_ROOT & MOS_NAME);
 
+    -- sdram controller
+    signal i_sdramctl_cyc      : std_logic;
+    signal i_sdramctl_we       : std_logic;
+    signal i_sdramctl_A        : std_logic_vector(24 downto 0);
+    signal i_sdramctl_D_wr     : std_logic_vector(7 downto 0);
+    signal i_sdramctl_D_rd     : std_logic_vector(7 downto 0);
+    signal i_sdramctl_stall    : std_logic;
+
     -- psram controller
     signal i_psram_cmd_read    : std_logic;
     signal i_psram_cmd_write   : std_logic;
-    signal i_psram_addr        : std_logic_vector(21 downto 0);
     signal i_psram_din         : std_logic_vector(15 downto 0);
     signal i_psram_dout        : std_logic_vector(15 downto 0);
     signal i_psram_busy        : std_logic;
@@ -181,12 +188,60 @@ begin
             READY <= '0';
             i_bootstrap_reset_n <= '0';
         elsif rising_edge(CLK_96) then
-            if i_psram_busy = '0' then
+            if i_sdramctl_stall = '0' then
                 i_bootstrap_reset_n <= '1';
             end if;
             READY <= not i_bootstrap_busy;
         end if;
     end process;
+
+--------------------------------------------------------
+-- SDRAM controller
+--------------------------------------------------------
+
+    i_sdramctl_A <= "000000" & i_X_A;
+    i_sdramctl_cyc <= i_X_A_stb;
+    i_sdramctl_we <= i_X_nOE;
+    i_sdramctl_D_wr <= i_X_Din;
+
+    e_sdram_ctl:entity work.sdramctl
+    generic map (
+      CLOCKSPEED  => 96000000,
+      T_CAS_EXTRA => 1
+      )
+    port map (
+      Clk            => CLK_96,
+
+    --A(0)      byte lane
+    --A(1..9)   column address
+    --A(10..22) row address
+    --A(23..24) bank address
+
+
+      -- sdram interface
+      sdram_DQ_io    => sdram_DQ_io,
+      sdram_A_o      => sdram_A_o,
+      sdram_BS_o     => sdram_BS_o,
+      sdram_CKE_o    => sdram_CKE_o,
+      sdram_nCS_o    => sdram_nCS_o,
+      sdram_nRAS_o   => sdram_nRAS_o,
+      sdram_nCAS_o   => sdram_nCAS_o,
+      sdram_nWE_o    => sdram_nWE_o,
+      sdram_DQM_o    => sdram_DQM_o,
+
+      -- cpu interface
+
+      ctl_rfsh_i        => '0',
+      ctl_reset_i       => not rst_n,
+
+      ctl_stall_o       => i_sdramctl_stall,
+      ctl_cyc_i         => i_sdramctl_cyc,
+      ctl_we_i          => i_sdramctl_we,
+      ctl_A_i           => i_sdramctl_A,
+      ctl_D_wr_i        => i_sdramctl_D_wr,
+      ctl_D_rd_o        => i_sdramctl_D_rd,
+      ctl_ack_o         => open
+    );
 
 
 --------------------------------------------------------
@@ -238,15 +293,14 @@ begin
                 FLASH_SO        => FLASH_SO
                 );
 
-        i_X_Dout <= i_psram_dout( 7 downto 0) when i_X_a(0) = '0' else
-                    i_psram_dout(15 downto 8);
+        i_X_Dout <= i_sdramctl_D_rd;
 
 
     end generate;
 
     NotGenBootstrap: if not IncludeBootstrap generate
 
-        i_bootstrap_busy <= '0';
+        i_bootstrap_busy <= not i_bootstrap_reset_n;
         i_X_A_stb      <= core_A_stb;
         i_X_nOE        <= core_nOE;
         i_X_nWE_long   <= core_nWE_long;
@@ -266,11 +320,7 @@ begin
                 if core_A(18) = '0' then
                     i_X_Dout <= r_mem_rom(to_integer(unsigned(core_A(14 downto 0))));
                 else
-                    if core_A(0) = '0' then
-                        i_X_Dout <= i_psram_dout(7 downto 0);
-                    else
-                        i_X_Dout <= i_psram_dout(15 downto 8);
-                    end if;
+                    i_X_Dout <= i_sdramctl_D_rd;
                 end if;
             end if;
         end process;

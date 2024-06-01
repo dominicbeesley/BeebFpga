@@ -25,8 +25,8 @@ architecture rtl of test_tb is
 
    signal i_clk_board         : std_logic;
 
-   signal i_btn1_n            : std_logic;
-   signal i_btn2_n            : std_logic;
+   signal i_btn1              : std_logic;
+   signal i_btn2              : std_logic;
    signal i_ps2_clk           : std_logic;
    signal i_ps2_data          : std_logic;
    signal i_ps2_mouse_clk     : std_logic;
@@ -37,6 +37,17 @@ architecture rtl of test_tb is
    signal i_tf_mosi           : std_logic;
    signal i_uart_rx           : std_logic;
    signal i_uart_tx           : std_logic;
+
+   signal i_sdram_DQ       : std_logic_vector(15 downto 0);
+   signal i_sdram_A        : std_logic_vector(12 downto 0); 
+   signal i_sdram_BS       : std_logic_vector(1 downto 0); 
+   signal i_sdram_CLK      : std_logic;
+   signal i_sdram_CKE      : std_logic;
+   signal i_sdram_nCS      : std_logic;
+   signal i_sdram_nRAS     : std_logic;
+   signal i_sdram_nCAS     : std_logic;
+   signal i_sdram_nWE      : std_logic;
+   signal i_sdram_DQM      : std_logic_vector(1 downto 0);
 
    signal i_GSRI              : std_logic;
 
@@ -63,8 +74,8 @@ begin
       wait;
    end process;
 
-   i_btn1_n <= 'H';
-   i_btn2_n <= 'H';
+   i_btn1 <= 'L';
+   i_btn2 <= 'L';
 
    i_ps2_clk <= 'H';
    i_ps2_data <= 'H';
@@ -108,8 +119,8 @@ begin
    )
    port map (
          board_clk50     => i_clk_board,
-         btn1_n          => i_btn1_n,
-         btn2_n          => i_btn2_n,
+         btn1            => i_btn1,
+         btn2            => i_btn2,
          ps2_clk         => i_ps2_clk,
          ps2_data        => i_ps2_data,
          ps2_mouse_clk   => i_ps2_mouse_clk,
@@ -125,9 +136,36 @@ begin
          FLASH_CS       => i_FLASH_CS,
          FLASH_SI       => i_FLASH_SI,
          FLASH_CK       => i_FLASH_CK,
-         FLASH_SO       => i_FLASH_SO
+         FLASH_SO       => i_FLASH_SO,
+
+         sdram_clk_o    => i_sdram_CLK,
+         sdram_DQ_io    => i_sdram_DQ,
+         sdram_A_o      => i_sdram_A,
+         sdram_BS_o     => i_sdram_BS,
+         sdram_nCS_o    => i_sdram_nCS,
+         sdram_nRAS_o   => i_sdram_nRAS,
+         sdram_nCAS_o   => i_sdram_nCAS,
+         sdram_nWE_o    => i_sdram_nWE,
+         sdram_DQM_o    => i_sdram_DQM
+
     );
 
+   i_sdram_CKE <= '1';
+
+   e_sdram:entity work.W9825G6KH
+   port map (
+      Dq       => i_sdram_DQ,
+      Addr     => i_sdram_A,
+      Bs       => i_sdram_BS,
+      Clk      => i_sdram_CLK,
+      Cke      => i_sdram_CKE,
+      Cs_n     => i_sdram_nCS,
+      Ras_n    => i_sdram_nRAS,
+      Cas_n    => i_sdram_nCAS,
+      We_n     => i_sdram_nWE,
+      Dqm      => i_sdram_DQM
+      --Dqm    => "00"
+    );
 
 
    GSR: entity work.GSR
@@ -155,5 +193,8 @@ begin
     );
 
    i_FLASH_SO <= 'H';
+
+
+
 
 end rtl;

@@ -50,12 +50,15 @@ lib.add_source_file("../../src/gowin/gowin_tang_primer25k/src/gowin_pll/pll_27_1
 lib.add_source_file("../../src/gowin/gowin_tang_primer25k/src/gowin_pll/pll_48_96.vhd")
 lib.add_source_file("../../src/gowin/gowin_tang_primer25k/src/mem_tang_25k.vhd")
 lib.add_source_file("../../src/gowin/gowin_tang_primer25k/src/bootstrap.vhd")
+lib.add_source_file("../../src/gowin/gowin_tang_primer25k/src/sdramctl.vhd")
+lib.add_source_file("../../src/gowin/gowin_tang_primer25k/src/common.vhd")
 
 lib.add_source_files("C:/Gowin/Gowin_V1.9.9.02_x64/IDE/simlib/gw5a/prim_sim.vhd")
 
 fmf = vu.add_library("fmf")
 fmf.add_source_files("../library/fmf/*.vhd")
 
+lib.add_source_files("../library/3rdparty/winbond/W9825G6KH/W9825G6KH.modelsim.vp", file_type="verilog", defines=dict({ 'T6CL2':'1', 'BL4':'1'}))
 
 vu.set_sim_option("disable_ieee_warnings",1)
 

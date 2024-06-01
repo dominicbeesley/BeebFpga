@@ -617,6 +617,8 @@ begin
     -- SDRAM Memory Controller
     --------------------------------------------------------
 
+    sdram_clk_o <= clock_96_p;
+
     e_mem: entity work.mem_tang_25k
         generic map (
             SIM => SIM,

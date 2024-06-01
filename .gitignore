@@ -64,3 +64,5 @@ firmware/version.asm
 **/vunit_out
 *.sublime-project
 *.sublime-workspace
+
+vunit_test/library/3rdparty/*/
