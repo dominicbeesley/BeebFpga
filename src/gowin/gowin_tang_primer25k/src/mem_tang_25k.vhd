@@ -25,6 +25,7 @@ entity mem_tang_25k is
 
         READY             : out std_logic;
 
+        core_stb          : in    std_logic;
         core_A_stb        : in    std_logic;
         core_A            : in    std_logic_vector (18 downto 0);
         core_Din          : in    std_logic_vector (7 downto 0);
@@ -84,6 +85,7 @@ architecture rtl of mem_tang_25k is
     signal r_mem_rom : mem_mos_t := MEM_INIT_FILE(PRJ_ROOT & MOS_NAME);
 
     -- sdram controller
+    signal i_sdramctl_rfsh     : std_logic;
     signal i_sdramctl_cyc      : std_logic;
     signal i_sdramctl_we       : std_logic;
     signal i_sdramctl_A        : std_logic_vector(24 downto 0);
@@ -101,6 +103,7 @@ architecture rtl of mem_tang_25k is
     -- from bootstrap to psram controller
     signal i_X_Din         : std_logic_vector(7 downto 0);
     signal i_X_Dout        : std_logic_vector(7 downto 0);
+    signal i_X_stb         : std_logic;
     signal i_X_A_stb       : std_logic;
     signal i_X_A           : std_logic_vector(18 downto 0);
     signal i_X_nWE_long    : std_logic;
@@ -201,6 +204,7 @@ begin
 
     i_sdramctl_A <= "000000" & i_X_A;
     i_sdramctl_cyc <= i_X_A_stb;
+    i_sdramctl_rfsh <= i_X_stb and not i_X_A_stb;
     i_sdramctl_we <= i_X_nOE;
     i_sdramctl_D_wr <= i_X_Din;
 
@@ -231,7 +235,7 @@ begin
 
       -- cpu interface
 
-      ctl_rfsh_i        => '0',
+      ctl_rfsh_i        => i_sdramctl_rfsh,
       ctl_reset_i       => not rst_n,
 
       ctl_stall_o       => i_sdramctl_stall,
@@ -271,6 +275,7 @@ begin
                 user_address    => user_address,
                 user_length     => user_length,
                 user_rom_map    => user_rom_map,
+                RAM_stb         => core_stb,
                 RAM_A_stb       => core_A_stb,
                 RAM_nOE         => core_nOE,
                 RAM_nWE         => core_nWE,
@@ -279,6 +284,7 @@ begin
                 RAM_A           => core_A,
                 RAM_Din         => core_Din,
                 RAM_Dout        => core_Dout,
+                SRAM_stb        => i_X_stb,
                 SRAM_A_stb      => i_X_A_stb,
                 SRAM_nOE        => i_X_nOE,
                 SRAM_nWE        => open,
@@ -302,6 +308,7 @@ begin
 
         i_bootstrap_busy <= not i_bootstrap_reset_n;
         i_X_A_stb      <= core_A_stb;
+        i_X_stb        <= core_stb;
         i_X_nOE        <= core_nOE;
         i_X_nWE_long   <= core_nWE_long;
         i_X_nCS        <= core_nCS;

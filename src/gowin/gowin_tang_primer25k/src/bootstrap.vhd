@@ -41,6 +41,7 @@ entity bootstrap is
         user_rom_map    : in std_logic_vector(63 downto 0) := x"FEDCBA9876543210";
 
         -- interface from design
+        RAM_stb         : in   std_logic;
         RAM_A_stb       : in   std_logic;
         RAM_nOE         : in   std_logic;
         RAM_nWE         : in   std_logic;
@@ -51,6 +52,7 @@ entity bootstrap is
         RAM_Dout        : out  std_logic_vector (7 downto 0);
 
         -- interface to external SRAM
+        SRAM_stb        : out   std_logic;
         SRAM_A_stb      : out   std_logic;
         SRAM_nOE        : out   std_logic;
         SRAM_nWE        : out   std_logic;
@@ -118,7 +120,7 @@ begin
 --------------------------------------------------------
 
     SRAM_D_out          <= bs_Din when bs_busy = '1' else RAM_Din;
-
+    SRAM_stb            <= RAM_stb;
     SRAM_A_stb          <= bs_A_stb when bs_busy = '1' else RAM_A_stb;
     SRAM_A(18 downto 0) <= (bs_A(18) & bs_A_mapped & bs_A(13 downto 0))  when bs_busy = '1' else RAM_A;
 
