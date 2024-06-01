@@ -1,9 +1,14 @@
-create_clock -name sys_clk -period 37.037 -waveform {0 18.518} [get_ports {sys_clk}] -add
+create_clock -name board_clk50 -period 20.0 -waveform {0 10} [get_ports {board_clk50}] -add
 
 // Create clock definitions for each of the derived clocks
-create_generated_clock -name clock_27 -source [get_ports {sys_clk}] -master_clock sys_clk -divide_by 27 -multiply_by 27 [get_nets {clock_27}]
-create_generated_clock -name clock_48 -source [get_ports {sys_clk}] -master_clock sys_clk -divide_by 27 -multiply_by 48 [get_nets {clock_48}]
-create_generated_clock -name clock_96 -source [get_ports {sys_clk}] -master_clock sys_clk -divide_by 27 -multiply_by 96 [get_nets {clock_96}]
+
+//HDMI clocks
+create_generated_clock -name clock_27 -source [get_ports {board_clk50}] -master_clock board_clk50 -divide_by 50 -multiply_by 27 [get_nets {clock_27}]
+create_generated_clock -name clock_135 -source [get_ports {board_clk50}] -master_clock board_clk50 -divide_by 10 -multiply_by 27 [get_nets {clock_135}]
+
+//Core clocks - derived from HDMI clocks
+create_generated_clock -name clock_48 -source [get_nets {clock_27}] -master_clock clock_27 -divide_by 18 -multiply_by 32 [get_nets {clock_48}]
+create_generated_clock -name clock_96 -source [get_nets {clock_27}] -master_clock clock_27 -divide_by 9 -multiply_by 32 [get_nets {clock_96}]
 
 // Ignore any timing paths between the main and video clocks
 set_clock_groups -asynchronous -group [get_clocks {clock_48}] -group [get_clocks {clock_27}]
@@ -15,8 +20,8 @@ set_false_path -from [get_clocks {clock_48}] -through [get_nets {m128_mode*}] -t
 set_multicycle_path -from [get_regs {bbc_micro/Gen*Core.core/*}] -to [get_regs {bbc_micro/Gen*Core.core/*}]  -setup -end 2
 set_multicycle_path -from [get_regs {bbc_micro/Gen*Core.core/*}] -to [get_regs {bbc_micro/Gen*Core.core/*}]  -hold -end 1
 
-set_multicycle_path -from [get_regs {bbc_micro/Gen*Core.core/*}] -to [get_regs {bbc_micro/trace*}]  -setup -end 2
-set_multicycle_path -from [get_regs {bbc_micro/Gen*Core.core/*}] -to [get_regs {bbc_micro/trace*}]  -hold -end 1
+//set_multicycle_path -from [get_regs {bbc_micro/Gen*Core.core/*}] -to [get_regs {bbc_micro/trace*}]  -setup -end 2
+//set_multicycle_path -from [get_regs {bbc_micro/Gen*Core.core/*}] -to [get_regs {bbc_micro/trace*}]  -hold -end 1
 
 set_multicycle_path -from [get_regs {bbc_micro/Gen*Core.core/*}] -to [get_regs {bbc_micro/crtc/*}]  -setup -end 2
 set_multicycle_path -from [get_regs {bbc_micro/Gen*Core.core/*}] -to [get_regs {bbc_micro/crtc/*}]  -hold -end 1
