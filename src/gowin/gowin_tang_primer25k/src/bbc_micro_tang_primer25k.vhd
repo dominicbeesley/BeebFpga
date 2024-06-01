@@ -65,9 +65,8 @@ entity bbc_micro_tang_primer25k is
         );
     port (
         board_clk50     : in    std_logic;
-        btn1_n          : in    std_logic;     -- Toggle Master / Beeb modes
-        btn2_n          : in    std_logic;     -- Toggle HDMI / DVI modes
-        led             : out   std_logic_vector (5 downto 0);
+        btn1            : in    std_logic;     -- Toggle Master / Beeb modes
+        btn2            : in    std_logic;     -- Toggle HDMI / DVI modes
 
         -- Keyboard / Mouse
         ps2_clk         : inout std_logic;
@@ -80,6 +79,8 @@ entity bbc_micro_tang_primer25k is
         tf_cs           : out   std_logic;
         tf_sclk         : out   std_logic;
         tf_mosi         : out   std_logic;
+        tf_uk_dat1      : inout std_logic;
+        tf_uk_dat2      : inout std_logic;
 
         -- USB UART
         uart_rx         : in    std_logic;
@@ -96,7 +97,7 @@ entity bbc_micro_tang_primer25k is
         sdram_DQ_io         :   inout std_logic_vector(15 downto 0);
         sdram_A_o           :   out std_logic_vector(12 downto 0); 
         sdram_BS_o          :  out  std_logic_vector(1 downto 0); 
-        sdram_CKE_o         :   out std_logic;
+        --sdram_CKE_o         :   out std_logic;
         sdram_nCS_o         :   out std_logic;
         sdram_nRAS_o        :   out std_logic;
         sdram_nCAS_o        :   out std_logic;
@@ -107,7 +108,9 @@ entity bbc_micro_tang_primer25k is
         flash_cs        : out   std_logic;     -- Active low FLASH chip select
         flash_si        : out   std_logic;     -- Serial output to FLASH chip SI pin
         flash_ck        : out   std_logic;     -- FLASH clock
-        flash_so        : in    std_logic      -- Serial input from FLASH chip SO pin
+        flash_so        : in    std_logic;     -- Serial input from FLASH chip SO pin
+        flash_uk_wp     : inout std_logic;
+        flash_uk_hold   : inout std_logic
         );
 end entity;
 
@@ -278,6 +281,12 @@ architecture rtl of bbc_micro_tang_primer25k is
     signal monitor_leds    :   std_logic_vector(5 downto 0);
 
 begin
+    -- unused pins --
+    tf_uk_dat1 <= 'Z';
+    tf_uk_dat2 <= 'Z';
+
+    flash_uk_wp <= 'Z';
+    flash_uk_hold <= 'Z';
 
     --------------------------------------------------------
     -- BBC Micro Core
@@ -418,7 +427,7 @@ begin
     reset_gen : process(clock_48)
     begin
         if rising_edge(clock_48) then
-            if (btn1_n = '0') then
+            if (btn1 = '1') then
                 reset_counter <= (others => '0');
             elsif (reset_counter(reset_counter'high) = '0') then
                 reset_counter <= reset_counter + 1;
@@ -446,7 +455,7 @@ begin
             if powerup_reset_n = '0' then
                 hdmi_audio_en <= '1';
                 config_counter <= (others => '0');
-            elsif btn2_n = '0' then
+            elsif btn2 = '1' then
                 config_counter <= (others => '1');
             elsif config_counter(config_counter'high) = '1' then
                 config_counter <= config_counter - 1;
@@ -605,7 +614,7 @@ begin
     end generate;
 
     --------------------------------------------------------
-    -- PSRAM Memory Controller
+    -- SDRAM Memory Controller
     --------------------------------------------------------
 
     e_mem: entity work.mem_tang_25k
@@ -638,7 +647,7 @@ begin
             sdram_DQ_io     => sdram_DQ_io,
             sdram_A_o       => sdram_A_o,
             sdram_BS_o      => sdram_BS_o,
-            sdram_CKE_o     => sdram_CKE_o,
+            sdram_CKE_o     => open, --sdram_CKE_o,
             sdram_nCS_o     => sdram_nCS_o,
             sdram_nRAS_o    => sdram_nRAS_o,
             sdram_nCAS_o    => sdram_nCAS_o,
