@@ -42,11 +42,12 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
+use ieee.std_logic_misc.all;
 use ieee.numeric_std.all;
 
 entity bbc_micro_tang_primer25k is
     generic (
-        IncludeMaster      : boolean := true; -- if both included, the CPU is the AlanD 65C02
+        IncludeMaster      : boolean := false; -- if both included, the CPU is the AlanD 65C02
         IncludeBeeb        : boolean := true; -- and btn1 can toggle between the ROM images
 
         IncludeAMXMouse    : boolean := false;
@@ -54,10 +55,10 @@ entity bbc_micro_tang_primer25k is
         IncludeSID         : boolean := true;
         IncludeMusic5000   : boolean := false; -- doesn't meet timing, but seems to work
         IncludeVideoNuLA   : boolean := true;
-        IncludeTrace       : boolean := true;
+        IncludeTrace       : boolean := false;
         IncludeHDMI        : boolean := true;
-        IncludeBootStrap   : boolean := true;
-        IncludeMonitor     : boolean := true;
+        IncludeBootStrap   : boolean := false;
+        IncludeMonitor     : boolean := false;
 
         PRJ_ROOT           : string  := "../../..";
         MOS_NAME           : string  := "/roms/bbcb/os12_basic.bit";
@@ -110,7 +111,10 @@ entity bbc_micro_tang_primer25k is
         flash_ck        : out   std_logic;     -- FLASH clock
         flash_so        : in    std_logic;     -- Serial input from FLASH chip SO pin
         flash_uk_wp     : inout std_logic;
-        flash_uk_hold   : inout std_logic
+        flash_uk_hold   : inout std_logic;
+
+        debug_sync      : out std_logic;
+        debug_vid       : out std_logic
         );
 end entity;
 
@@ -243,6 +247,7 @@ architecture rtl of bbc_micro_tang_primer25k is
     signal reset_counter   : std_logic_vector(RESETBITS downto 0) := (others => '0');
 
     signal ext_A_stb       : std_logic;
+    signal ext_stb         : std_logic;
     signal ext_A           : std_logic_vector (18 downto 0);
     signal ext_Din         : std_logic_vector (7 downto 0);
     signal ext_Dout        : std_logic_vector (7 downto 0);
@@ -261,6 +266,9 @@ architecture rtl of bbc_micro_tang_primer25k is
     signal i_VGA_R         : std_logic_vector(3 downto 0);
     signal i_VGA_G         : std_logic_vector(3 downto 0);
     signal i_VGA_B         : std_logic_vector(3 downto 0);
+    signal i_VGA_HS        : std_logic;
+    signal i_VGA_VS        : std_logic;
+
 
     -- HDMI
     signal hdmi_aspect     : std_logic_vector(1 downto 0);
@@ -287,6 +295,9 @@ begin
 
     flash_uk_wp <= 'Z';
     flash_uk_hold <= 'Z';
+
+    debug_sync <= i_VGA_HS xor i_VGA_VS;
+    debug_vid  <= or_reduce(i_VGA_R);
 
     --------------------------------------------------------
     -- BBC Micro Core
@@ -323,8 +334,8 @@ begin
             video_red      => i_VGA_R,
             video_green    => i_VGA_G,
             video_blue     => i_VGA_B,
-            video_hsync    => open,
-            video_vsync    => open,
+            video_hsync    => i_VGA_HS,
+            video_vsync    => i_VGA_VS,
             audio_l        => audio_l,
             audio_r        => audio_r,
             ext_nOE        => ext_nOE,
@@ -333,6 +344,7 @@ begin
             ext_nCS        => ext_nCS,
             ext_A          => ext_A,
             ext_A_stb      => ext_A_stb,
+            ext_stb        => ext_stb,
             ext_Dout       => ext_Dout,
             ext_Din        => ext_Din,
             SDMISO         => tf_miso,
@@ -637,6 +649,7 @@ begin
             READY          => mem_ready,
             CLK_48         => clock_48,
             core_A_stb     => ext_A_stb,
+            core_stb       => ext_stb,
             core_A         => ext_A,
             core_Din       => ext_Din,
             core_Dout      => ext_Dout,
