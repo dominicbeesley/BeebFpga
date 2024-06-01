@@ -111,7 +111,9 @@ entity bbc_micro_core is
 
         -- External memory (e.g. SRAM and/or FLASH)
         -- 512KB logical address space
-        ext_A_stb      : out   std_logic;
+        ext_A_stb      : out   std_logic;   -- indicates the start of a memory cycle AND a valid address
+        ext_stb        : out   std_logic;   -- indicates the start of a memory cycle
+        -- if ext_stb = '1' and ext_A_stb = '0' then this indicates a dead cycle (can be used for refresh)
         ext_nOE        : out   std_logic;
         ext_nWE        : out   std_logic;
         ext_nWE_long   : out   std_logic;
@@ -1657,11 +1659,14 @@ begin
                 tube_mem_cycle <= '0';
             end if;
 
-            if div3_counter = 1 and clken_counter(0) = '0' and
-                (clken_counter(1) = '0' or IncludeCoPro6502) then
-                ext_A_stb <= '1';
+            ext_A_stb   <= '0';
+            ext_stb     <= '0';
+            if div3_counter = 1 and clken_counter(0) = '0' then
+                if (clken_counter(1) = '0' or IncludeCoPro6502) then
+                    ext_A_stb <= '1';
+                end if;
+                ext_stb <= '1';
             else
-                ext_A_stb <= '0';
             end if;
 
             -- Control timing of the Ram write, mid cycle
