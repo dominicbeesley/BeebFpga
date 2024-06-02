@@ -93,14 +93,7 @@ architecture rtl of mem_tang_25k is
     signal i_sdramctl_D_rd     : std_logic_vector(7 downto 0);
     signal i_sdramctl_stall    : std_logic;
 
-    -- psram controller
-    signal i_psram_cmd_read    : std_logic;
-    signal i_psram_cmd_write   : std_logic;
-    signal i_psram_din         : std_logic_vector(15 downto 0);
-    signal i_psram_dout        : std_logic_vector(15 downto 0);
-    signal i_psram_busy        : std_logic;
-
-    -- from bootstrap to psram controller
+    -- from bootstrap to sdram controller
     signal i_X_Din         : std_logic_vector(7 downto 0);
     signal i_X_Dout        : std_logic_vector(7 downto 0);
     signal i_X_stb         : std_logic;
@@ -191,9 +184,9 @@ begin
             READY <= '0';
             i_bootstrap_reset_n <= '0';
         elsif rising_edge(CLK_96) then
-            if i_sdramctl_stall = '0' then
+--            if i_sdramctl_stall = '0' then
                 i_bootstrap_reset_n <= '1';
-            end if;
+--            end if;
             READY <= not i_bootstrap_busy;
         end if;
     end process;
@@ -484,8 +477,8 @@ begin
                 test_write := cmd_write1 and not cmd_write2;
                 cmd_write2 := cmd_write1;
                 if i_X_nCS = '0' and i_X_A_stb = '1' and i_X_nWE_long = '0' then
-                    cmd_write1 := i_psram_cmd_write;
-                elsif i_psram_busy = '0' then
+                    cmd_write1 := i_sdramctl_we;
+                elsif i_sdramctl_stall = '0' then
                     cmd_write1 := '0';
                 end if;
                 -- Check reads at the end of the read cycle
@@ -493,7 +486,7 @@ begin
                 cmd_read2  := cmd_read1;
                 if i_X_nCS = '0' and i_X_A_stb = '1' and i_X_nOE = '0' then
                     cmd_read1  := '1';
-                elsif i_psram_busy = '0' then
+                elsif i_sdramctl_stall = '0' then
                     cmd_read1 := '0';
                 end if;
                 -- Move dout back to 48MHz domain
