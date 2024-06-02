@@ -54,14 +54,14 @@ entity bbc_micro_tang_primer25k is
         IncludeSPISD       : boolean := true;
         IncludeSID         : boolean := true;
         IncludeMusic5000   : boolean := false; -- doesn't meet timing, but seems to work
-        IncludeVideoNuLA   : boolean := true;
+        IncludeVideoNuLA   : boolean := false;
         IncludeTrace       : boolean := false;
         IncludeHDMI        : boolean := true;
         IncludeBootStrap   : boolean := false;
         IncludeMonitor     : boolean := false;
 
         PRJ_ROOT           : string  := "../../..";
-        MOS_NAME           : string  := "/roms/bbcb/os12_basic.bit";
+        MOS_NAME           : string  := "/roms/bbcb/os_tester2.bit";
         SIM                : boolean := false
         );
     port (
@@ -114,7 +114,10 @@ entity bbc_micro_tang_primer25k is
         flash_uk_hold   : inout std_logic;
 
         debug_sync      : out std_logic;
-        debug_vid       : out std_logic
+        debug_vid       : out std_logic;
+
+        test_o          : out std_logic_vector(1 downto 0);
+        brd_led_o       : out std_logic_vector(1 downto 0)
         );
 end entity;
 
@@ -288,6 +291,8 @@ architecture rtl of bbc_micro_tang_primer25k is
     -- Mem Controller Monior LEDs
     signal monitor_leds    :   std_logic_vector(5 downto 0);
 
+    signal i_test           : std_logic_vector(7 downto 0);
+
 begin
     -- unused pins --
     tf_uk_dat1 <= 'Z';
@@ -298,6 +303,9 @@ begin
 
     debug_sync <= i_VGA_HS xor i_VGA_VS;
     debug_vid  <= or_reduce(i_VGA_R);
+
+    test_o         <= i_test(1 downto 0);
+    brd_led_o      <= hard_reset_n & powerup_reset_n;
 
     --------------------------------------------------------
     -- BBC Micro Core
@@ -397,7 +405,7 @@ begin
             trace_sync     => trace_sync,
             trace_rstn     => trace_rstn,
             trace_phi2     => trace_phi2,
-            test           => open
+            test           => i_test
         );
 
     vid_mode       <= "0001" when IncludeHDMI else "0000";
