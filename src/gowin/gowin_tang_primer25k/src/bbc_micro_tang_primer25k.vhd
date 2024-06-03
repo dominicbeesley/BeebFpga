@@ -61,7 +61,7 @@ entity bbc_micro_tang_primer25k is
         IncludeMonitor     : boolean := false;
 
         PRJ_ROOT           : string  := "../../..";
-        MOS_NAME           : string  := "/roms/bbcb/os_tester2.bit";
+        MOS_NAME           : string  := "/roms/bbcb/os12_basic.bit";
         SIM                : boolean := false
         );
     port (
