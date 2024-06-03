@@ -58,9 +58,9 @@ while (scalar @ARGV && $ARGV[0] =~ /^-/) {
 	}
 	elsif ($sw eq "--size") 
 	{
-		$size = uc(shift);
+		$size = shift;
 
-		$size or Usage "Bad fill character '$fill' should be one of '" . join("', '", @fillchars) . "'", 1;
+		$size or Usage "Bad size", 1;
 	}
 	elsif ($sw eq "--b4") 
 	{
