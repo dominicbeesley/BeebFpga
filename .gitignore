@@ -64,5 +64,7 @@ firmware/version.asm
 **/vunit_out
 *.sublime-project
 *.sublime-workspace
+**/*.gprj.user
 
 vunit_test/library/3rdparty/*/
+
