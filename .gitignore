@@ -67,5 +67,7 @@ firmware/version.asm
 /src/common/BeebWifi/gh_16550
 *.sublime-project
 *.sublime-workspace
+**/*.gprj.user
 
 vunit_test/library/3rdparty/*/
+
