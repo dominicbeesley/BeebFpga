@@ -57,7 +57,8 @@ entity bbc_micro_tang_primer25k is
         IncludeVideoNuLA   : boolean := false;
         IncludeTrace       : boolean := false;
         IncludeHDMI        : boolean := true;
-        IncludeBootStrap   : boolean := false;
+        IncludeBootStrap   : boolean := true;
+        IncludeBootstrapAndBlock : boolean := true; -- when true includes the OS/rom in MOS_NAME in slot 4, slot 3
         IncludeMonitor     : boolean := false;
 
         PRJ_ROOT           : string  := "../../..";
@@ -298,8 +299,8 @@ begin
     tf_uk_dat1 <= 'Z';
     tf_uk_dat2 <= 'Z';
 
-    flash_uk_wp <= 'Z';
-    flash_uk_hold <= 'Z';
+    flash_uk_wp <= '0';
+    flash_uk_hold <= '1';
 
     debug_sync <= i_VGA_HS xor i_VGA_VS;
     debug_vid  <= or_reduce(i_VGA_R);
@@ -644,6 +645,7 @@ begin
             SIM => SIM,
             IncludeMonitor => IncludeMonitor,
             IncludeBootStrap => IncludeBootStrap,
+            IncludeBootstrapAndBlock => IncludeBootstrapAndBlock,
             IncludeMinimalBeeb => true,
             IncludeMinimalMaster => false,
             PRJ_ROOT => PRJ_ROOT,

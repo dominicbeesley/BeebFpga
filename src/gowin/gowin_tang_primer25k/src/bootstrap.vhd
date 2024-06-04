@@ -22,6 +22,9 @@ use ieee.std_logic_unsigned.all;
 use ieee.numeric_std.all;
 
 entity bootstrap is
+    generic (
+        SIM : boolean := false
+        );
     port (
         clock           : in    std_logic;
 
@@ -92,6 +95,7 @@ signal flash_data       : std_logic_vector(7 downto 0);
 
 -- bootstrap control of SRAM, these signals connect to SRAM when boostrap_busy = '1'
 signal bs_A_stb         : std_logic;
+signal bs_stb           : std_logic;
 signal bs_A             : std_logic_vector(18 downto 0);
 signal bs_A_mapped      : std_logic_vector(3 downto 0);
 signal bs_Din           : std_logic_vector(7 downto 0);
@@ -120,7 +124,7 @@ begin
 --------------------------------------------------------
 
     SRAM_D_out          <= bs_Din when bs_busy = '1' else RAM_Din;
-    SRAM_stb            <= RAM_stb;
+    SRAM_stb            <= bs_stb when bs_busy = '1' else RAM_stb;
     SRAM_A_stb          <= bs_A_stb when bs_busy = '1' else RAM_A_stb;
     SRAM_A(18 downto 0) <= (bs_A(18) & bs_A_mapped & bs_A(13 downto 0))  when bs_busy = '1' else RAM_A;
 
@@ -209,6 +213,7 @@ begin
                 bs_state <= INIT;                                 -- move state machine to INIT state
             elsif rising_edge(clock) then
                 bs_A_stb <= '0';
+                bs_stb <= '0';
                 if clock_en = '1' then
                     case bs_state is
                         when INIT =>
@@ -218,7 +223,7 @@ begin
                             bs_nCS <= '0';                        -- SRAM always selected during bootstrap
                             bs_nOE <= '1';                        -- SRAM output disabled during bootstrap
                             bs_nWE <= '1';                        -- SRAM write enable inactive default state
-                            bs_Din <= x"00";                      -- place byte on SRAM data bus
+                            bs_Din <= x"00";                      -- place byte on SRAM data bus                            
                             bs_state <= ZERO0;
                             -- Zero the 256K of RAM that is being used for ROMs, so that when chanimg
                             -- from master mode (full) to beeb mode (minimal), the beeb doesn't see old master ROMs
@@ -228,6 +233,7 @@ begin
                         when ZERO1 =>
                             bs_A_mapped <= bs_A(17 downto 14);
                             bs_A_stb <= '1';
+                            bs_stb <= '1';
                             bs_nWE_long <= '0';
                             bs_state <= ZERO2;
                         when ZERO2 =>
@@ -239,17 +245,18 @@ begin
                             bs_state <= ZERO5;
                         when ZERO5 =>
                             bs_state <= ZERO6;
+                            bs_stb <= '1';
                         when ZERO6 =>
                             bs_nWE <= '1';
                             bs_nWE_long <= '1';
                             bs_state <= ZERO7;
                         when ZERO7 =>
-                            if bs_A(18) = '0' then
-                                bs_state <= ZERO0;
-                            else
+                            if bs_A(18) = '1' or (SIM and bs_A(3) = '1') then -- shorten the zeroing phase for SIM!
                                 flash_init <= '0';                    -- signal FLASH to begin init
                                 bs_A   <= (others => '1');            -- SRAM address all ones (becomes zero on first increment)
                                 bs_state <= START_READ_FLASH;
+                            else
+                                bs_state <= ZERO0;
                             end if;
                         when START_READ_FLASH =>
                             flash_init <= '1';                    -- allow FLASH to exit init state
@@ -292,6 +299,7 @@ begin
                         when FLASH1 =>
                             bs_A_mapped <= user_rom_map(to_integer(unsigned(bs_A(17 downto 14))) * 4 + 3 downto to_integer(unsigned(bs_A(17 downto 14))) * 4);
                             bs_A_stb <= '1';
+                            bs_stb <= '1';                            
                             bs_nWE_long <= '0';
                             bs_Din( 7 downto 0) <= flash_data;    -- place byte on SRAM data bus
                             bs_state <= FLASH2;                   -- idle
@@ -302,6 +310,7 @@ begin
                             bs_state <= FLASH4;                   -- idle
                         when FLASH4 =>
                             bs_state <= FLASH5;                   -- idle
+                            bs_stb <= '1';                            
                         when FLASH5 =>
                             bs_state <= FLASH6;                   -- idle
                         when FLASH6 =>

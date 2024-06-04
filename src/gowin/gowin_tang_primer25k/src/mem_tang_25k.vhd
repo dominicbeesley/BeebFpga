@@ -14,6 +14,7 @@ entity mem_tang_25k is
         SIM                  : boolean;
         IncludeMonitor       : boolean := false;
         IncludeBootstrap     : boolean;
+        IncludeBootstrapAndBlock : boolean := false; -- when true includes the OS/rom in MOS_NAME in slot 4, slot 3
         IncludeMinimalMaster : boolean := false;  -- Creates a build to test 4x16K ROM Images
         IncludeMinimalBeeb   : boolean := false   -- Creates a build to test 4x16K ROM Images
         );
@@ -70,7 +71,7 @@ architecture rtl of mem_tang_25k is
         variable inl : line;
         variable count : integer;
     begin
-        if not IncludeBootstrap then
+        if not IncludeBootstrap or IncludeBootstrapAndBlock then
             count := 0;
             while not(endfile(infile)) and count < ROMSIZE loop
                 readline(infile, inl);
@@ -122,9 +123,9 @@ architecture rtl of mem_tang_25k is
     -- start address of user data in FLASH as obtained from bitmerge.py
     -- this mus be beyond the end of the bitstream
 
-    constant user_address_beeb            : std_logic_vector(23 downto 0) := x"000000";
-    constant user_address_master_minimal  : std_logic_vector(23 downto 0) := x"010000";
-    constant user_address_master_full     : std_logic_vector(23 downto 0) := x"040000";
+    constant user_address_beeb            : std_logic_vector(23 downto 0) := x"500000";
+    constant user_address_master_minimal  : std_logic_vector(23 downto 0) := x"510000";
+    constant user_address_master_full     : std_logic_vector(23 downto 0) := x"540000";
     signal   user_address                 : std_logic_vector(23 downto 0);
     signal   user_length                  : std_logic_vector(23 downto 0);
 
@@ -261,6 +262,9 @@ begin
                           user_rom_map_full;
 
         inst_bootstrap: entity work.bootstrap
+            generic map (
+                SIM             => SIM
+                )
             port map(
                 clock           => CLK_48,
                 powerup_reset_n => i_bootstrap_reset_n,
@@ -292,8 +296,30 @@ begin
                 FLASH_SO        => FLASH_SO
                 );
 
-        i_X_Dout <= i_sdramctl_D_rd;
+    g_bs_norm:if not IncludeBootstrapAndBlock generate
+        p_ram_rd:process(CLK_48)
+        begin
+            if rising_edge(CLK_48) then
+                i_X_Dout <= i_sdramctl_D_rd;
+            end if;
+        end process;
+    end generate;
 
+    g_bs_debugrom:if IncludeBootstrapAndBlock generate
+        -- Minimal Model B ROM set
+        p_ram_rd:process(CLK_48)
+        begin
+            if rising_edge(CLK_48) then
+                if  core_A(18 downto 14) = "00011" or 
+                    core_A(18 downto 14) = "00100" 
+                then
+                    i_X_Dout <= r_mem_rom(to_integer(unsigned(core_A(14 downto 0))));
+                else
+                    i_X_Dout <= i_sdramctl_D_rd;
+                end if;
+            end if;
+        end process;
+    end generate;
 
     end generate;
 
