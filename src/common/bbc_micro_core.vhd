@@ -2650,6 +2650,7 @@ begin
 
 
     -- Test output
-    test <= crtc_vsync & crtc_hsync & crtc_ra(0) & crtc_enable & crtc_test(3 downto 0);
+--    test <= crtc_vsync & crtc_hsync & crtc_ra(0) & crtc_enable & crtc_test(3 downto 0);
+    test <= cpu_a(6 downto 0) & cpu_clken;
 
 end architecture;
