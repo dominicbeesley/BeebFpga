@@ -54,7 +54,7 @@ entity bbc_micro_tang_primer25k is
         IncludeSPISD       : boolean := true;
         IncludeSID         : boolean := true;
         IncludeMusic5000   : boolean := false; -- doesn't meet timing, but seems to work
-        IncludeVideoNuLA   : boolean := false;
+        IncludeVideoNuLA   : boolean := true;
         IncludeTrace       : boolean := false;
         IncludeHDMI        : boolean := true;
         IncludeBootStrap   : boolean := true;
