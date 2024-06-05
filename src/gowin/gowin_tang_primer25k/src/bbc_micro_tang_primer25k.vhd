@@ -47,7 +47,7 @@ use ieee.numeric_std.all;
 
 entity bbc_micro_tang_primer25k is
     generic (
-        IncludeMaster      : boolean := false; -- if both included, the CPU is the AlanD 65C02
+        IncludeMaster      : boolean := true; -- if both included, the CPU is the AlanD 65C02
         IncludeBeeb        : boolean := true; -- and btn1 can toggle between the ROM images
 
         IncludeAMXMouse    : boolean := false;

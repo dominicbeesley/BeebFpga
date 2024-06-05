@@ -26,10 +26,23 @@ cat m128/mos.rom               > $IMAGE
 
 IMAGE=/tmp/tang25_image_master_540000.bin
 rm -f $IMAGE
-cat m128/dfs.rom               > $IMAGE # Retain this for SRAM Utils
+
+cat generic/blank.rom          > $IMAGE
+cat generic/blank.rom          >> $IMAGE
+cat generic/blank.rom          >> $IMAGE
+cat generic/blank.rom          >> $IMAGE
+
+# Note: It's not possible to pre-load the sideways RAM banks (4-7)
+cat m128/mos.rom               >> $IMAGE
+cat generic/blank.rom          >> $IMAGE
+cat generic/blank.rom          >> $IMAGE
+cat generic/blank.rom          >> $IMAGE
+
+cat m128/dfs.rom               >> $IMAGE # Retain this for SRAM Utils
 cat m128/${MMFS}/M/MAMMFS.rom  >> $IMAGE # MMFS in a higher slot
 cat m128/viewsht.rom           >> $IMAGE
 cat m128/edit.rom              >> $IMAGE
+
 cat m128/basic4.rom            >> $IMAGE
 cat m128/adfs.rom              >> $IMAGE
 cat m128/view.rom              >> $IMAGE
