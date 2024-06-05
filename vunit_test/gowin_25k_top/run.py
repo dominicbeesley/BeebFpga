@@ -45,6 +45,23 @@ lib.add_source_file("../../src/common/vidproc_orig.vhd")
 
 lib.add_source_file("../../src/xilinx/spi_flash.vhd")
 
+lib.add_source_file("../../src/common/Tube/tube_comp_pack.vhd")
+lib.add_source_file("../../src/common/Tube/ph_reg3.v")
+lib.add_source_file("../../src/common/Tube/ph_flag_m.v")
+lib.add_source_file("../../src/common/Tube/hp_reg3.v")
+lib.add_source_file("../../src/common/Tube/hp_flag_m.v")
+lib.add_source_file("../../src/common/Tube/ph_byte.v")
+lib.add_source_file("../../src/common/Tube/ph_bytequad.v")
+lib.add_source_file("../../src/common/Tube/hp_byte.v")
+lib.add_source_file("../../src/common/Tube/hp_bytequad.v")
+lib.add_source_file("../../src/common/Tube/ph_fifo.v")
+lib.add_source_file("../../src/common/Tube/tube.v")
+
+lib.add_source_file("../../src/common/CoPro6502.vhd")
+lib.add_source_file("../../src/common/CoProSPI.vhd")
+lib.add_source_file("../../src/common/tuberom_65c102.vhd")
+
+
 lib.add_source_file("../../src/gowin/gowin_tang_primer25k/src/bbc_micro_tang_primer25k.vhd")
 lib.add_source_file("../../src/gowin/gowin_tang_primer25k/src/gowin_pll/pll_27_135.vhd")
 lib.add_source_file("../../src/gowin/gowin_tang_primer25k/src/gowin_pll/pll_48_96.vhd")

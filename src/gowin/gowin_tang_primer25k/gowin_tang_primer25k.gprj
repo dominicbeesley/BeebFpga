@@ -39,6 +39,22 @@
         <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/upd7002.vhd" type="file.vhdl" enable="1"/>
         <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/vidproc.vhd" type="file.vhdl" enable="1"/>
         <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/vidproc_orig.vhd" type="file.vhdl" enable="1"/>
+
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/Tube/tube_comp_pack.vhd" type="file.vhdl" enable="1"/>
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/Tube/ph_reg3.v" type="file.verilog" enable="1"/>
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/Tube/ph_flag_m.v" type="file.verilog" enable="1"/>
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/Tube/hp_reg3.v" type="file.verilog" enable="1"/>
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/Tube/hp_flag_m.v" type="file.verilog" enable="1"/>
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/Tube/ph_byte.v" type="file.verilog" enable="1"/>
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/Tube/ph_bytequad.v" type="file.verilog" enable="1"/>
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/Tube/hp_byte.v" type="file.verilog" enable="1"/>
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/Tube/hp_bytequad.v" type="file.verilog" enable="1"/>
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/Tube/ph_fifo.v" type="file.verilog" enable="1"/>
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/Tube/tube.v" type="file.verilog" enable="1"/>
+
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/CoPro6502.vhd" type="file.vhdl" enable="1"/>
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/CoProSPI.vhd" type="file.vhdl" enable="1"/>
+        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/tuberom_65c102.vhd" type="file.vhdl" enable="1"/>
         <File path="src/bbc_micro_tang_primer25k.vhd" type="file.vhdl" enable="1"/>
         <File path="src/bootstrap.vhd" type="file.vhdl" enable="1"/>
         <File path="src/common.vhd" type="file.vhdl" enable="1"/>

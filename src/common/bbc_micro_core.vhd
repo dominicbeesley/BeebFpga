@@ -64,6 +64,7 @@ entity bbc_micro_core is
         IncludeCoPro6502   : boolean := false; -- The three co pro options
         IncludeCoProSPI    : boolean := false; -- are currently mutually exclusive
         IncludeCoProExt    : boolean := false; -- (i.e. select just one)
+        CoPro3MHz          : boolean := false;
         IncludeVideoNuLA   : boolean := false;
         IncludeHDMI        : boolean := false;
         IncludeTrace       : boolean := false;
@@ -685,7 +686,6 @@ signal music5000_do     :   std_logic_vector(7 downto 0);
 -- Optional Tube
 signal tube_do          :   std_logic_vector(7 downto 0);
 signal tube_clken       :   std_logic;
-signal tube_clken1      :   std_logic := '0';
 signal tube_ram_wr      :   std_logic;
 signal tube_ram_addr    :   std_logic_vector(15 downto 0);
 signal tube_ram_data_in :   std_logic_vector(7 downto 0);
@@ -1629,7 +1629,15 @@ begin
 
             -- Tube clock enable
             if div3_counter = 2 and clken_counter(1 downto 0) = 1 and IncludeCoPro6502 then
-                tube_clken <= '1';
+                if CoPro3MHz then
+                    if clken_counter(3 downto 2) /= "11" then
+                        tube_clken <= '1';                    
+                    else
+                        tube_clken <= '0';
+                    end if;
+                else
+                    tube_clken <= '1';
+                end if;
             else
                 tube_clken <= '0';
             end if;
@@ -1662,7 +1670,15 @@ begin
 
             -- Tube memory cycle
             if clken_counter(1) = '0' and IncludeCoPro6502 then
-                tube_mem_cycle <= '1';
+                if CoPro3MHz then
+                    if clken_counter(3 downto 2) /= "11" then
+                        tube_mem_cycle <= '1';
+                    else
+                        tube_mem_cycle <= '0';                        
+                    end if;
+                else
+                    tube_mem_cycle <= '1';
+                end if;
                 -- Latch read data at the end of the cycle
                 if div3_counter = 2 and clken_counter(0) = '1' then
                     tube_mem_data <= ext_Dout;
@@ -1674,11 +1690,14 @@ begin
             ext_A_stb   <= '0';
             ext_stb     <= '0';
             if div3_counter = 1 and clken_counter(0) = '0' then
-                if (clken_counter(1) = '0' or IncludeCoPro6502) then
+                if IncludeCoPro6502 then
+                    if clken_counter(1) = '1' or clken_counter(3 downto 2) /= "11" or not CoPro3MHz then
+                        ext_A_stb <= '1';
+                    end if;
+                elsif clken_counter(1) = '0' then                
                     ext_A_stb <= '1';
                 end if;
                 ext_stb <= '1';
-            else
             end if;
 
             -- Control timing of the Ram write, mid cycle

@@ -112,7 +112,8 @@ begin
         IncludeSID         => false,
         IncludeHDMI        => false,
         IncludeMaster      => false,
-        IncludeBootStrap   => true,
+        IncludeBootStrap   => false,
+        IncludeBootStrapAndBlock => true,
         PRJ_ROOT           => PRJ_ROOT,
         MOS_NAME           => MOS_NAME,
         SIM                => true
@@ -174,7 +175,7 @@ begin
       );
 
 
-   e_flash:entity fmf.s25fl032a
+   e_flash:entity fmf.s25fl064a
    generic map (
         mem_file_name       => PRJ_ROOT & "roms/rom_image_64K_beeb_500000.hex",
 

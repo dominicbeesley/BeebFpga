@@ -320,6 +320,7 @@ begin
             IncludeMusic5000   => IncludeMusic5000,
             IncludeICEDebugger => false,
             IncludeCoPro6502   => false,
+            CoPro3MHz          => true,             -- leave time slot free for refresh
             IncludeCoProSPI    => false,
             IncludeCoProExt    => false,
             IncludeVideoNuLA   => IncludeVideoNuLA,
@@ -646,8 +647,6 @@ begin
             IncludeMonitor => IncludeMonitor,
             IncludeBootStrap => IncludeBootStrap,
             IncludeBootstrapAndBlock => IncludeBootstrapAndBlock,
-            IncludeMinimalBeeb => true,
-            IncludeMinimalMaster => false,
             PRJ_ROOT => PRJ_ROOT,
             MOS_NAME => MOS_NAME
         )
