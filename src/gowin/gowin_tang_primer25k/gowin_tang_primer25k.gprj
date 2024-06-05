@@ -3,7 +3,7 @@
 <Project>
     <Template>FPGA</Template>
     <Version>5</Version>
-    <Device name="GW5A-25B" pn="GW5A-LV25MG121NC1/I0">gw5a25b-003</Device>
+    <Device name="GW5A-25A" pn="GW5A-LV25MG121NC2/I1">gw5a25a-001</Device>
     <FileList>
         <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/common/hdmi/hdmidataencoder.v" type="file.verilog" enable="1"/>
         <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/AtomBusMon/src/AlanD/R65Cx2.vhd" type="file.vhdl" enable="1"/>

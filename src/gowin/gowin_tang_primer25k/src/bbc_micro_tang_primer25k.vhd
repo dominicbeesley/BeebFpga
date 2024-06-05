@@ -58,7 +58,7 @@ entity bbc_micro_tang_primer25k is
         IncludeTrace       : boolean := false;
         IncludeHDMI        : boolean := true;
         IncludeBootStrap   : boolean := true;
-        IncludeBootstrapAndBlock : boolean := true; -- when true includes the OS/rom in MOS_NAME in slot 4, slot 3
+        IncludeBootstrapAndBlock : boolean := false; -- when true includes the OS/rom in MOS_NAME in slot 4, slot 3
         IncludeMonitor     : boolean := false;
 
         PRJ_ROOT           : string  := "../../..";
