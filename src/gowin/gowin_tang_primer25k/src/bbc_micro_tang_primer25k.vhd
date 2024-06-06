@@ -647,6 +647,8 @@ begin
             IncludeMonitor => IncludeMonitor,
             IncludeBootStrap => IncludeBootStrap,
             IncludeBootstrapAndBlock => IncludeBootstrapAndBlock,
+            IncludeMinimalBeeb => true,
+            IncludeMinimalMaster => false,
             PRJ_ROOT => PRJ_ROOT,
             MOS_NAME => MOS_NAME
         )
