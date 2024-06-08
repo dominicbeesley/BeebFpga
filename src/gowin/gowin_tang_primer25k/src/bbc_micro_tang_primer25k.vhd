@@ -229,6 +229,7 @@ architecture rtl of bbc_micro_tang_primer25k is
     --------------------------------------------------------
 
     signal clock_27        : std_logic;
+    signal clock_24        : std_logic;
     signal clock_48        : std_logic;
     signal clock_96        : std_logic;
     signal clock_96_p      : std_logic;
@@ -320,7 +321,7 @@ begin
             IncludeSPISD       => IncludeSPISD,
             IncludeSID         => IncludeSID,
             IncludeMusic5000   => IncludeMusic5000,
-            IncludeICEDebugger => false,
+            IncludeICEDebugger => true,
             IncludeCoPro6502   => true,
             CoPro3MHz          => true,             -- leave time slot free for refresh
             IncludeCoProSPI    => false,
@@ -337,7 +338,7 @@ begin
             clock_32       => '0',                 -- Unused now in the core
             clock_48       => clock_48,
             clock_96       => clock_96,
-            clock_avr      => '0',                 -- DB: no AVR yet
+            clock_avr      => clock_24,                 -- DB: no AVR yet
             hard_reset_n   => hard_reset_n,
             ps2_kbd_clk    => ps2_clk,
             ps2_kbd_data   => ps2_data,
@@ -437,6 +438,7 @@ begin
         clkout0     => clock_48,            -- core clock
         clkout1     => clock_96,            -- sdram controller clock
         clkout2     => clock_96_p,          -- sdram memory chips clock, phase shifted 
+        clkout3     => clock_24,
         clkin       => clock_27
     );
     

@@ -5,7 +5,7 @@
 --Part Number: GW5A-LV25MG121NC1/I0
 --Device: GW5A-25
 --Device Version: B
---Created Time: Mon May 27 18:07:35 2024
+--Created Time: Thu Jun  6 16:01:57 2024
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -16,13 +16,13 @@ entity pll_48_96 is
         clkout0: out std_logic;
         clkout1: out std_logic;
         clkout2: out std_logic;
+        clkout3: out std_logic;
         clkin: in std_logic
     );
 end pll_48_96;
 
 architecture Behavioral of pll_48_96 is
 
-    signal clkout3: std_logic;
     signal clkout4: std_logic;
     signal clkout5: std_logic;
     signal clkout6: std_logic;
@@ -164,7 +164,7 @@ begin
             ODIV0_SEL => 18,
             ODIV1_SEL => 9,
             ODIV2_SEL => 9,
-            ODIV3_SEL => 8,
+            ODIV3_SEL => 36,
             ODIV4_SEL => 8,
             ODIV5_SEL => 8,
             ODIV6_SEL => 8,
@@ -174,7 +174,7 @@ begin
             CLKOUT0_EN => "TRUE",
             CLKOUT1_EN => "TRUE",
             CLKOUT2_EN => "TRUE",
-            CLKOUT3_EN => "FALSE",
+            CLKOUT3_EN => "TRUE",
             CLKOUT4_EN => "FALSE",
             CLKOUT5_EN => "FALSE",
             CLKOUT6_EN => "FALSE",
