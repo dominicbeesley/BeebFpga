@@ -23,6 +23,21 @@ end test_tb;
 
 architecture rtl of test_tb is
 
+   component  W9825G6KH 
+   port (
+      Dq       : inout  std_logic_vector(15 downto 0); 
+      Addr     : in     std_logic_vector(12 downto 0);
+      Bs       : in     std_logic_vector(1 downto 0);
+      Clk      : in     std_logic;
+      Cke      : in     std_logic;
+      Cs_n     : in     std_logic;
+      Ras_n    : in     std_logic;
+      Cas_n    : in     std_logic;
+      We_n     : in     std_logic;
+      Dqm      : in     std_logic_vector(1 downto 0)
+   );
+   end component;
+
    signal i_clk_board         : std_logic;
 
    signal i_btn1              : std_logic;
@@ -56,7 +71,11 @@ architecture rtl of test_tb is
    signal i_FLASH_CK          : std_logic;
    signal i_FLASH_SO          : std_logic;
 
-begin
+   type t_mem_ent is array(15 downto 0) of std_logic;
+   type t_bank_type is array (0 to 4194303) of t_mem_ent;
+
+begin   
+
    p_clk:process
    constant PER2 : time := 500000 us / BOARD_CLOCK_FREQ;
    begin
@@ -112,8 +131,7 @@ begin
         IncludeSID         => false,
         IncludeHDMI        => false,
         IncludeMaster      => false,
-        IncludeBootStrap   => false,
-        IncludeBootStrapAndBlock => true,
+        IncludeBlockMOSBAS => true,
         PRJ_ROOT           => PRJ_ROOT,
         MOS_NAME           => MOS_NAME,
         SIM                => true
@@ -153,7 +171,7 @@ begin
 
    i_sdram_CKE <= '1';
 
-   e_sdram:entity work.W9825G6KH
+   e_sdram:W9825G6KH
    port map (
       Dq       => i_sdram_DQ,
       Addr     => i_sdram_A,

@@ -13,8 +13,7 @@ entity mem_tang_25k is
         MOS_NAME             : string;
         SIM                  : boolean;
         IncludeMonitor       : boolean := false;
-        IncludeBootstrap     : boolean;
-        IncludeBootstrapAndBlock : boolean := false; -- when true includes the OS/rom in MOS_NAME in slot 4, slot 3
+        IncludeBlockMOSBAS   : boolean;           -- skips boot strap and loads BASIC/MOS to slots 3/4
         IncludeMinimalMaster : boolean := false;  -- Creates a build to test 4x16K ROM Images
         IncludeMinimalBeeb   : boolean := false   -- Creates a build to test 4x16K ROM Images
         );
@@ -71,7 +70,7 @@ architecture rtl of mem_tang_25k is
         variable inl : line;
         variable count : integer;
     begin
-        if not IncludeBootstrap or IncludeBootstrapAndBlock then
+        if IncludeBlockMOSBAS then
             count := 0;
             while not(endfile(infile)) and count < ROMSIZE loop
                 readline(infile, inl);
@@ -84,6 +83,7 @@ architecture rtl of mem_tang_25k is
     end function;
 
     signal r_mem_rom : mem_mos_t := MEM_INIT_FILE(PRJ_ROOT & MOS_NAME);
+    signal r_mem_rom_D : std_logic_vector(7 downto 0);
 
     -- sdram controller
     signal i_sdramctl_rfsh     : std_logic;
@@ -185,9 +185,9 @@ begin
             READY <= '0';
             i_bootstrap_reset_n <= '0';
         elsif rising_edge(CLK_96) then
---            if i_sdramctl_stall = '0' then
+            if i_sdramctl_stall = '0' then
                 i_bootstrap_reset_n <= '1';
---            end if;
+            end if;
             READY <= not i_bootstrap_busy;
         end if;
     end process;
@@ -246,7 +246,7 @@ begin
 -- BOOTSTRAP SPI FLASH to SRAM
 --------------------------------------------------------
 
-    GenBootstrap: if IncludeBootstrap generate
+    GenBootstrap: if not IncludeBlockMOSBAS generate
 
 
         user_address <=   user_address_master_minimal when m128_mode = '1' and     IncludeMinimalMaster else
@@ -296,34 +296,11 @@ begin
                 FLASH_SO        => FLASH_SO
                 );
 
-    g_bs_norm:if not IncludeBootstrapAndBlock generate
-        p_ram_rd:process(CLK_48)
-        begin
-            if rising_edge(CLK_48) then
-                i_X_Dout <= i_sdramctl_D_rd;
-            end if;
-        end process;
-    end generate;
-
-    g_bs_debugrom:if IncludeBootstrapAndBlock generate
-        -- Minimal Model B ROM set
-        p_ram_rd:process(CLK_48)
-        begin
-            if rising_edge(CLK_48) then
-                if  core_A(18 downto 14) = "00011" or 
-                    core_A(18 downto 14) = "00100" 
-                then
-                    i_X_Dout <= r_mem_rom(to_integer(unsigned(core_A(14 downto 0))));
-                else
-                    i_X_Dout <= i_sdramctl_D_rd;
-                end if;
-            end if;
-        end process;
-    end generate;
+        i_X_Dout <= i_sdramctl_D_rd;
 
     end generate;
 
-    NotGenBootstrap: if not IncludeBootstrap generate
+    NotGenBootstrap: if IncludeBlockMOSBAS generate
 
         i_bootstrap_busy <= not i_bootstrap_reset_n;
         i_X_A_stb      <= core_A_stb;
@@ -343,13 +320,14 @@ begin
         p_ram_rd:process(CLK_48)
         begin
             if rising_edge(CLK_48) then
-                if core_A(18) = '0' then
-                    i_X_Dout <= r_mem_rom(to_integer(unsigned(core_A(14 downto 0))));
-                else
-                    i_X_Dout <= i_sdramctl_D_rd;
-                end if;
+                r_mem_rom_D <= r_mem_rom(to_integer(unsigned(core_A(14 downto 0))));
             end if;
         end process;
+
+        i_X_Dout <= r_mem_rom_D when core_A(18) = '0' else
+                    i_sdramctl_D_rd;
+
+
     end generate;
 
 
@@ -387,7 +365,7 @@ begin
                 case (state) is
                     when DBG_00 =>
                         if rst_n = '0' then
-                            if IncludeBootstrap then
+                            if IncludeBlockMOSBAS then
                                 state <= DBG_01;
                             else
                                 state <= DBG_08;

@@ -57,8 +57,7 @@ entity bbc_micro_tang_primer25k is
         IncludeVideoNuLA   : boolean := true;
         IncludeTrace       : boolean := false;
         IncludeHDMI        : boolean := true;
-        IncludeBootStrap   : boolean := true;
-        IncludeBootstrapAndBlock : boolean := false; -- when true includes the OS/rom in MOS_NAME in slot 4, slot 3
+        IncludeBlockMOSBAS : boolean := false;
         IncludeMonitor     : boolean := false;
 
         PRJ_ROOT           : string  := "../../..";
@@ -319,7 +318,7 @@ begin
             IncludeSID         => IncludeSID,
             IncludeMusic5000   => IncludeMusic5000,
             IncludeICEDebugger => false,
-            IncludeCoPro6502   => false,
+            IncludeCoPro6502   => true,
             CoPro3MHz          => true,             -- leave time slot free for refresh
             IncludeCoProSPI    => false,
             IncludeCoProExt    => false,
@@ -381,7 +380,7 @@ begin
             avr_TxD        => uart_tx,
             cpu_addr       => open,
             m128_mode      => m128_mode,
-            copro_mode     => '0',
+            copro_mode     => '1',
             p_spi_ssel     => '0',
             p_spi_sck      => '0',
             p_spi_mosi     => '0',
@@ -645,8 +644,7 @@ begin
         generic map (
             SIM => SIM,
             IncludeMonitor => IncludeMonitor,
-            IncludeBootStrap => IncludeBootStrap,
-            IncludeBootstrapAndBlock => IncludeBootstrapAndBlock,
+            IncludeBlockMOSBAS => IncludeBlockMOSBAS,
             IncludeMinimalBeeb => true,
             IncludeMinimalMaster => false,
             PRJ_ROOT => PRJ_ROOT,
