@@ -1690,13 +1690,7 @@ begin
             ext_A_stb   <= '0';
             ext_stb     <= '0';
             if div3_counter = 1 and clken_counter(0) = '0' then
-                if IncludeCoPro6502 then
-                    if clken_counter(1) = '1' or clken_counter(3 downto 2) /= "11" or not CoPro3MHz then
-                        ext_A_stb <= '1';
-                    end if;
-                elsif clken_counter(1) = '0' then                
-                    ext_A_stb <= '1';
-                end if;
+                ext_a_stb <= vid_mem_cycle or tube_mem_cycle or cpu_mem_cycle;
                 ext_stb <= '1';
             end if;
 
