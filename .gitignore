@@ -71,4 +71,4 @@ firmware/version.asm
 **/*.gprj.user
 
 vunit_test/library/3rdparty/*/
-
+vunit_test/sim_asm/*/build
