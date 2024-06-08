@@ -17,6 +17,8 @@ mos_handle_res:
 	sei
 	cld
 
+	lda	$FEE0		; tube access test
+
 	ldx	#$FF
 	txs
 
