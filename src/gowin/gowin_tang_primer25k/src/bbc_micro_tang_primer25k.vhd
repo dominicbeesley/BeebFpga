@@ -261,7 +261,9 @@ architecture rtl of bbc_micro_tang_primer25k is
 
     signal keyb_dip        : std_logic_vector(7 downto 0);
     signal vid_mode        : std_logic_vector(3 downto 0);
-    signal m128_mode       : std_logic := '1';
+    signal m128_mode       : std_logic := '0';
+    signal copro_mode      : std_logic := '0';
+    signal r_mode_select   : unsigned(1 downto 0) := "00";
 
     signal caps_led        : std_logic;
     signal shift_led       : std_logic;
@@ -292,6 +294,7 @@ architecture rtl of bbc_micro_tang_primer25k is
     signal monitor_leds    :   std_logic_vector(5 downto 0);
 
     signal i_test           : std_logic_vector(7 downto 0);
+
 
 begin
     -- unused pins --
@@ -380,7 +383,7 @@ begin
             avr_TxD        => uart_tx,
             cpu_addr       => open,
             m128_mode      => m128_mode,
-            copro_mode     => '1',
+            copro_mode     => copro_mode,
             p_spi_ssel     => '0',
             p_spi_sck      => '0',
             p_spi_mosi     => '0',
@@ -446,20 +449,17 @@ begin
     -- Also, if both IncludeMaster and IncludeBeeb then toggle m128mode
 
     reset_gen : process(clock_48)
+    variable next_mode:unsigned(1 downto 0);
     begin
         if rising_edge(clock_48) then
-            if (btn1 = '1') then
-                reset_counter <= (others => '0');
-            elsif (reset_counter(reset_counter'high) = '0') then
+            if (reset_counter(reset_counter'high) = '0') then
                 reset_counter <= reset_counter + 1;
-            elsif powerup_reset_n = '0' then
-                if IncludeBeeb and IncludeMaster then
-                    m128_mode <= not m128_mode;
-                elsif IncludeMaster then
-                    m128_mode <= '1';
-                else
-                    m128_mode <= '0';
-                end if;
+            elsif (btn1 = '1') then
+                reset_counter <= (others => '0');
+                next_mode  := r_mode_select + 1;
+                r_mode_select <= next_mode;
+                m128_mode <= std_logic(next_mode(0));
+                copro_mode <= std_logic(next_mode(1));
             end if;
             powerup_reset_n <= reset_counter(reset_counter'high);
             hard_reset_n <= not (not powerup_reset_n or not mem_ready);

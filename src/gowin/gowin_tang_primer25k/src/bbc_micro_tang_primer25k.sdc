@@ -15,7 +15,7 @@ set_clock_groups -asynchronous -group [get_clocks {clock_48}] -group [get_clocks
 set_clock_groups -asynchronous -group [get_clocks {clock_27}] -group [get_clocks {clock_48}]
 
 // Ingore any timing paths involving m128_main
-set_false_path -from [get_clocks {clock_48}] -through [get_nets {m128_mode*}] -to [get_clocks {clock_48}]
+set_false_path -from [get_clocks {clock_48}] -through [get_nets {r_mode_select*}] -to [get_clocks {clock_48}]
 
 set_multicycle_path -from [get_regs {bbc_micro/Gen*Core.core/*}] -to [get_regs {bbc_micro/Gen*Core.core/*}]  -setup -end 2
 set_multicycle_path -from [get_regs {bbc_micro/Gen*Core.core/*}] -to [get_regs {bbc_micro/Gen*Core.core/*}]  -hold -end 1
