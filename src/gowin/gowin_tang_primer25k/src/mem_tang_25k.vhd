@@ -180,15 +180,22 @@ begin
 
 
     p_reset:process(CLK_96, rst_n)
+    variable v_dly:unsigned(15 downto 0) := (others => '0');
     begin
         if rst_n = '0' then
             READY <= '0';
             i_bootstrap_reset_n <= '0';
+            v_dly := (others => '0');
         elsif rising_edge(CLK_96) then
             if i_sdramctl_stall = '0' then
                 i_bootstrap_reset_n <= '1';
             end if;
-            READY <= not i_bootstrap_busy;
+            if i_bootstrap_busy = '1' then
+                v_dly := (others => '0');
+            elsif v_dly(v_dly'high) /= '1' and i_bootstrap_busy = '0' then
+                v_dly := v_dly + 1;
+            end if;
+            READY <= v_dly(v_dly'high);
         end if;
     end process;
 
