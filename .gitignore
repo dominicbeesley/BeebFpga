@@ -72,3 +72,5 @@ firmware/version.asm
 
 vunit_test/library/3rdparty/*/
 vunit_test/sim_asm/*/build
+
+/src/gowin/**/src/*/temp
