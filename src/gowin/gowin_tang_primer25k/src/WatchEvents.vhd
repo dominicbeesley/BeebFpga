@@ -38,33 +38,31 @@ architecture rtl of WatchEvents is
 	signal r_data  : std_logic_vector(71 downto 0);
 begin
 
---	p_fif:process(clk)
---	begin
---		if rising_edge(clk) then
---			if srst = '1' then
---				r_occup <= '0';
---			else
---				if rd_en = '1' and r_occup = '1' then
---					r_occup <= '0';
-----					dout <= r_data;
---				end if;
---
---				if wr_en = '1' and r_occup = '0' then
---					r_data <= din;
---					r_occup <= '1';
---				end if;
---
---			end if;
---
---		end if;
---
---	end process;
---
---	dout <= r_data;
---	empty <= not r_occup;
---	full <= r_occup;
+	p_fif:process(clk)
+	begin
+		if rising_edge(clk) then
+			if srst = '1' then
+				r_occup <= '0';
+			else
+				if rd_en = '1' and r_occup = '1' then
+					r_occup <= '0';
+--					dout <= r_data;
+				end if;
 
+				if wr_en = '1' and r_occup = '0' then
+					r_data <= din;
+					r_occup <= '1';
+				end if;
 
-	dout <= din;
+			end if;
+
+		end if;
+
+	end process;
+
+	dout <= r_data;
+	empty <= not r_occup;
+	full <= r_occup;
+
 
 end rtl;
