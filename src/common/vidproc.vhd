@@ -193,6 +193,10 @@ architecture rtl of vidproc is
     signal phys_col_delay_out         : std_logic_vector(3 downto 0);
     signal phys_col_final             : std_logic_vector(3 downto 0);
 
+    signal invert_delay_reg           : std_logic_vector(6 downto 0);
+    signal invert_delay_mux           : std_logic_vector(7 downto 0);
+    signal invert_final               : std_logic;
+
 -- Attribue bits
     signal mode1                      : std_logic;
     signal attr_bits                  : std_logic_vector(2 downto 0);
@@ -649,13 +653,15 @@ begin
     -- Infer a large mux to select the appropriate hor scroll delay tap
     phys_col_delay_mux <= phys_col_delay_reg & phys_col;
     phys_col_delay_out <= phys_col_delay_mux(to_integer(unsigned(nula_hor_scroll_offset)) * 4 + 3 downto to_integer(unsigned(nula_hor_scroll_offset)) * 4);
-
+    
     phys_col_final <= phys_col_delay_out            when r0_teletext = '0' else
                       '0' & B_IN   & G_IN   & R_IN  when VGA         = '0' else
                       '0' & ttxt_B & ttxt_G & ttxt_R;
 
+    invert_delay_mux <= invert_delay_reg & cursor_invert;
+    invert_final <= invert_delay_mux(to_integer(unsigned(nula_hor_scroll_offset)));
+
     process (PIXCLK)
-        variable invert : std_logic_vector(3 downto 0);
     begin
         if rising_edge(PIXCLK) then
 
@@ -667,18 +673,21 @@ begin
                 ttxt_B <= B_IN;
 
                 -- Shift pixels in from right (so bits 3..0 are the most recent)
-                phys_col_delay_reg <= phys_col_delay_reg(23 downto 0) & phys_col;
+                if r0_crtc_2mhz = '1' or clken_counter(0) = '1' then
+                    phys_col_delay_reg <= phys_col_delay_reg(23 downto 0) & phys_col;
+                    invert_delay_reg <= invert_delay_reg(5 downto 0) & cursor_invert;
+                end if;
+
                 if nula_speccy_attr_mode = '1' then
                     disenout <= disen2;
                 else
                     disenout <= disen1;
                 end if;
                 if (r0_teletext = '1' and phys_col_final = "0000") or (r0_teletext = '0' and disenout = '0') then
-                    nula_RGB <= invert & invert & invert;
+                    nula_RGB <= (others => invert_final);
                 else
-                    nula_RGB <= nula_palette(to_integer(unsigned(phys_col_final xor invert)));
+                    nula_RGB <= nula_palette(to_integer(unsigned(phys_col_final xor (invert_final & invert_final & invert_final & invert_final))));
                 end if;
-                invert := (others => cursor_invert);
             end if;
         end if;
     end process;
