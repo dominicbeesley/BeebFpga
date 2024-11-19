@@ -188,13 +188,11 @@ architecture rtl of vidproc is
     signal phys_col                   : std_logic_vector(3 downto 0);
 
 -- Delay line for physical colour to support horirontal scroll offset
-    signal phys_col_delay_reg         : std_logic_vector(27 downto 0);
-    signal phys_col_delay_mux         : std_logic_vector(31 downto 0);
+    signal phys_col_delay_reg         : std_logic_vector(31 downto 0);
     signal phys_col_delay_out         : std_logic_vector(3 downto 0);
     signal phys_col_final             : std_logic_vector(3 downto 0);
 
-    signal invert_delay_reg           : std_logic_vector(6 downto 0);
-    signal invert_delay_mux           : std_logic_vector(7 downto 0);
+    signal invert_delay_reg           : std_logic_vector(7 downto 0);
     signal invert_final               : std_logic;
 
 -- Attribue bits
@@ -651,17 +649,16 @@ begin
     end process;
 
     -- Infer a large mux to select the appropriate hor scroll delay tap
-    phys_col_delay_mux <= phys_col_delay_reg & phys_col;
-    phys_col_delay_out <= phys_col_delay_mux(to_integer(unsigned(nula_hor_scroll_offset)) * 4 + 3 downto to_integer(unsigned(nula_hor_scroll_offset)) * 4);
+    phys_col_delay_out <= phys_col_delay_reg(to_integer(unsigned(nula_hor_scroll_offset)) * 4 + 3 downto to_integer(unsigned(nula_hor_scroll_offset)) * 4);
     
     phys_col_final <= phys_col_delay_out            when r0_teletext = '0' else
                       '0' & B_IN   & G_IN   & R_IN  when VGA         = '0' else
                       '0' & ttxt_B & ttxt_G & ttxt_R;
 
-    invert_delay_mux <= invert_delay_reg & cursor_invert;
-    invert_final <= invert_delay_mux(to_integer(unsigned(nula_hor_scroll_offset)));
+    invert_final <= invert_delay_reg(to_integer(unsigned(nula_hor_scroll_offset)));
 
     process (PIXCLK)
+    variable vr_disen_reg:std_logic;
     begin
         if rising_edge(PIXCLK) then
 
@@ -674,14 +671,16 @@ begin
 
                 -- Shift pixels in from right (so bits 3..0 are the most recent)
                 if r0_crtc_2mhz = '1' or clken_counter(0) = '1' then
-                    phys_col_delay_reg <= phys_col_delay_reg(23 downto 0) & phys_col;
-                    invert_delay_reg <= invert_delay_reg(5 downto 0) & cursor_invert;
+                    phys_col_delay_reg <= phys_col_delay_reg(27 downto 0) & phys_col;
+                    invert_delay_reg <= invert_delay_reg(6 downto 0) & cursor_invert;
+                    -- delay disen by one more pixel
+                    disenout <= vr_disen_reg;
                 end if;
 
                 if nula_speccy_attr_mode = '1' then
-                    disenout <= disen2;
+                    vr_disen_reg := disen2;
                 else
-                    disenout <= disen1;
+                    vr_disen_reg := disen1;
                 end if;
                 if (r0_teletext = '1' and phys_col_final = "0000") or (r0_teletext = '0' and disenout = '0') then
                     nula_RGB <= (others => invert_final);
