@@ -1,12 +1,12 @@
 BUILD=./build
 
-SUBDIRS=scrtes1 scrtes2 paltes1 paltes2 paltes3
+SUBDIRS=scrtes1 scrtes2 paltes1 paltes2 paltes3 att1
 
 DEPLOY=~/hostfs/nulatest
 
 SSD=$(BUILD)/dom-nula-tests.ssd
 
-SSD_OBJS=scrtes1.bbc.inf scrtes2.bbc.inf paltes1.bbc.inf paltes2.bbc.inf paltes3.bbc.inf
+SSD_OBJS=scrtes1.bbc.inf scrtes2.bbc.inf paltes1.bbc.inf paltes2.bbc.inf paltes3.bbc.inf att1.bbc.inf
 
 .PHONY: clean all deploy $(SUBDIRS) $(SSD)
 
