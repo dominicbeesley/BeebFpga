@@ -94,7 +94,10 @@ entity vidproc_orig is
         -- Video out
         R           :   out std_logic_vector(0 downto 0);
         G           :   out std_logic_vector(0 downto 0);
-        B           :   out std_logic_vector(0 downto 0)
+        B           :   out std_logic_vector(0 downto 0);
+
+        PIXCLKEN    :   out std_logic
+
         );
 end entity;
 
@@ -135,6 +138,9 @@ architecture rtl of vidproc_orig is
     signal BB               :   std_logic;
 
 begin
+
+    PIXCLKEN <= clken_pixel;
+    
     -- Synchronous register access, enabled on every clock
     process(CLOCK,nRESET)
     begin

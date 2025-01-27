@@ -134,7 +134,9 @@ entity vidproc is
         -- Video out
         R           :   out std_logic_vector(3 downto 0);
         G           :   out std_logic_vector(3 downto 0);
-        B           :   out std_logic_vector(3 downto 0)
+        B           :   out std_logic_vector(3 downto 0);
+
+        PIXCLKEN    :   out std_logic
         );
 end entity;
 
@@ -229,6 +231,8 @@ architecture rtl of vidproc is
     signal nula_nreset                 : std_logic := '0';
 
 begin
+
+    PIXCLKEN <= clken_pixel;
 
     -- Original VideoULA Registers
     -- Synchronous register access, enabled on every clock

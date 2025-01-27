@@ -104,6 +104,9 @@ entity bbc_micro_core is
         video_blue     : out   std_logic_vector (3 downto 0);
         video_vsync    : out   std_logic;
         video_hsync    : out   std_logic;
+        video_disen    : out   std_logic;
+        video_clken    : out   std_logic;
+        video_mhz12    : out   std_logic;
 
         -- Audio
         audio_l        : out   std_logic_vector (15 downto 0);
@@ -873,7 +876,8 @@ begin
                 B_IN            => b_in,
                 R               => r_out,
                 G               => g_out,
-                B               => b_out
+                B               => b_out,
+                PIXCLKEN        => video_clken
             );
     end generate;
 
@@ -901,10 +905,14 @@ begin
                 B_IN            => b_in,
                 R               => r_out,
                 G               => g_out,
-                B               => b_out
+                B               => b_out,
+                PIXCLKEN        => video_clken
             );
         mhz12_active <= ttxt_active;
     end generate;
+
+    video_disen <= crtc_de; --TODO: DB: this is a naive attempt 
+    video_mhz12 <= mhz12_active;
 
     teletext : entity work.saa5050
         port map (
@@ -2317,13 +2325,12 @@ begin
                    vga1_hs when vga1_mode = '1' else
                    vga2_hs when vga2_mode = '1' else
               crtc_hsync_n when  vga_mode = '1' else
-                   not (crtc_hsync or crtc_vsync);
+                   crtc_hsync;
 
     vsync_int   <= vga0_vs when vga0_mode = '1' else
                    vga1_vs when vga1_mode = '1' else
                    vga2_vs when vga2_mode = '1' else
-              crtc_vsync_n when  vga_mode = '1' else
-                   '1';
+                   crtc_vsync;
 
     video_hsync <= hsync_int xor vid_mode(2);
 
