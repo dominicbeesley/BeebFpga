@@ -40,6 +40,7 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
 use ieee.std_logic_misc.all;
 use ieee.numeric_std.all;
+use work.common.all;
 
 entity rgb_lcd_retimer is
     generic (
@@ -120,6 +121,16 @@ architecture rtl of rgb_lcd_retimer is
 
     signal ctr_bl : unsigned(10 downto 0);
 
+    constant MAXPIXELSPERLIN : natural := 768;
+
+    signal r_de_ctr : unsigned(numbits(MAXPIXELSPERLIN)-1 downto 0) := (others => '0');
+    signal r_min_de : unsigned(numbits(MAXPIXELSPERLIN)-1 downto 0) := (others => '1');
+    signal r_de_offset : unsigned(numbits(MAXPIXELSPERLIN)-1 downto 0) := (others => '1');
+    signal r_vs_clken : std_logic;
+    signal r_hs_clken : std_logic;
+    signal r_had_de_line : std_logic := '0';
+    signal r_had_de_field : std_logic := '0';
+
 begin
 
     p_bl:process(clock_48)
@@ -130,6 +141,62 @@ begin
     end process;
 
     lcd_bl <= ctr_bl(ctr_bl'high) and ctr_bl(ctr_bl'high-1) ; -- 50% duty
+
+    -- once per line pulse and once per 50hz field
+    p_hs:process(clock_48)
+    -- gate out spurious, we don't care so much where but how often, don't
+    variable v_prev_hsync : unsigned(3 downto 0); 
+    variable v_prev_vsync : unsigned(3 downto 0); 
+    begin
+        if rising_edge(clock_48) then
+            r_hs_clken <= '0';
+            r_vs_clken <= '0';
+            if video_hs = '1' then
+                if to_integer(v_prev_hsync) = 0 then
+                    r_hs_clken <= '1';
+                    -- look for field
+                    if video_vs = '1' then
+                        if v_prev_vsync = (others => '0') then
+                            r_vs_clken <= '1';
+                        end if;
+                        v_prev_vsync := (others => '1');
+                    end if;
+                else
+                    v_prev_vsync := v_prev_vsync - 1;
+                end if;
+                v_prev_hsync := (others => '1');
+            else
+                v_prev_hsync := v_prev_hsync - 1;
+            end if;
+        end if;
+    end process;
+
+    
+    p_measure_offset:process(clock_48)
+    begin
+        if rising_edge(clock_48) then
+            if r_vs_clken = '1' then
+                -- end of frame calc new de offset
+                if r_had_de_field = '1' then
+                    r_de_offset <= r_min_de;
+                end if;
+                r_had_de_field <= '0';
+                r_min_de <= (others => '1');
+            elsif r_hs_clken = '1' then
+                r_de_ctr <= (others => '0');
+                r_had_de_line <= '0';
+            elsif r_had_de_line = '0' then
+                if video_DE = '1' then
+                    if r_min_de < r_de_ctr then
+                        r_min_de <= r_de_ctr;
+                    end if;
+                    r_had_de_line <= '1';
+                    r_had_de_field <= '1';
+                end if;
+            end if;
+            r_de_ctr <= r_de_ctr + 1;
+        end if;
+    end process;
 
     p_lcd_pix:process(clock_48)
     variable v_r : std_logic_vector(5 downto 0);
@@ -150,7 +217,11 @@ begin
                 sr_fifo_lcd_r(0) <= video_r;
                 sr_fifo_lcd_g(0) <= video_g;
                 sr_fifo_lcd_b(0) <= video_b;
-                sr_fifo_lcd_de(0) <= video_DE;
+                if (r_de_ctr >= r_de_offset and r_de_ctr <= r_de_offset + 480) then
+                    sr_fifo_lcd_de(0) <= '1';
+                else
+                    sr_fifo_lcd_de(0) <= '0';
+                end if;
 
                 lcd_hs <= not video_hs;
                 lcd_vs <= not video_vs;
