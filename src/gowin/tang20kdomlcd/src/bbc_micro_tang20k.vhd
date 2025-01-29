@@ -42,6 +42,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
+use ieee.std_logic_misc.all;
 use ieee.numeric_std.all;
 
 entity bbc_micro_tang20k is
@@ -93,6 +94,7 @@ entity bbc_micro_tang20k is
         lcd_vs          : out   std_logic;
         lcd_de          : out   std_logic;
         lcd_dclk        : out   std_logic;
+        lcd_bl          : out   std_logic;
 
         -- Magic ports for SDRAM to be inferred
         O_sdram_clk     : out   std_logic;
@@ -231,6 +233,10 @@ architecture rtl of bbc_micro_tang20k is
     signal i_VGA_CLKEN     : std_logic;
     signal i_VGA_MHZ12     : std_logic;
 
+    signal i_lcd_r         : std_logic_vector(5 downto 0);
+    signal i_lcd_g         : std_logic_vector(5 downto 0);
+    signal i_lcd_b         : std_logic_vector(5 downto 0);
+
     -- CPU tracing
     signal trace_data      :   std_logic_vector(7 downto 0);
     signal trace_r_nw      :   std_logic;
@@ -240,47 +246,6 @@ architecture rtl of bbc_micro_tang20k is
 
     -- Mem Controller Monior LEDs
     signal monitor_leds    :   std_logic_vector(5 downto 0);
-
-    constant LCD_FIFO_LEN  : natural := 12;
-
-    type t_pix_arr is array (natural range <>) of std_logic_vector(5 downto 0);
-
-    signal sr_fifo_lcd_r        :  t_pix_arr(0 to LCD_FIFO_LEN-1);
-    signal sr_fifo_lcd_g        :  t_pix_arr(0 to LCD_FIFO_LEN-1);
-    signal sr_fifo_lcd_b        :  t_pix_arr(0 to LCD_FIFO_LEN-1);
-
-    procedure SHIFTIN(
-        signal  sr          : inout t_pix_arr;
-                value       : in std_logic_vector(5 downto 0);
-                N           : in natural
-        ) is
-    begin
-        for I in 0 TO LCD_FIFO_LEN-1 loop
-            if I < N then
-                sr(I) <= value;
-            else
-                sr(I) <= sr(I - N);
-            end if;
-        end loop;
-    end procedure;
-
-    function SUM4(
-        signal sr           : in t_pix_arr
-    ) return std_logic_vector is
-    variable acc : unsigned(7 downto 0);
-    variable res : std_logic_vector(5 downto 0);
-    begin
-        
-        acc := (others => '0');
-        for I in LCD_FIFO_LEN-4 to LCD_FIFO_LEN-1 loop
-            acc := acc + unsigned(sr(I));
-        end loop;
-
-        res :=  std_logic_vector(acc(7 downto 2));
-
-        return res;
-
-    end function;
 
 begin
 
@@ -558,66 +523,43 @@ begin
             FLASH_SO       => flash_so
         );
 
+    
+    e_lcd_drv:entity work.rgb_lcd_retimer
+    generic map (
+
+        G_PX_IN_WIDTH => 4,
+        G_PX_OUT_WIDTH => 6
+    )
+    port map(
+        clock_48    => clock_48,
+
+        video_r     => i_VGA_r,
+        video_g     => i_VGA_g,
+        video_b     => i_VGA_b,
+        video_hs    => i_VGA_hs,
+        video_vs    => i_VGA_vs,
+        video_de    => i_VGA_de,
+        video_pclken=> i_VGA_clken,
+
+        lcd_hs      => lcd_hs,
+        lcd_vs      => lcd_vs,
+        lcd_de      => lcd_de,
+        lcd_dclk    => lcd_dclk,
+        lcd_bl      => lcd_bl,
+
+        lcd_r       => i_lcd_r,
+        lcd_g       => i_lcd_g,
+        lcd_b       => i_lcd_b
+    );
+
+    lcd_r <= i_lcd_r(5 downto 1);
+    lcd_g <= i_lcd_g(5 downto 0);
+    lcd_b <= i_lcd_b(5 downto 1);
+
+
     --------------------------------------------------------
     -- Output Assignments
     --------------------------------------------------------
-
-    p_lcd_pix:process(clock_48)
-    variable sr_disendly : std_logic_vector(50 downto 0);
-    variable v_r : std_logic_vector(5 downto 0);
-    variable v_g : std_logic_vector(5 downto 0);
-    variable v_b : std_logic_vector(5 downto 0);
-    begin
-        if rising_edge(clock_48) then
-
-            for i in LCD_FIFO_LEN-1 downto 1 loop
-                sr_fifo_lcd_r(I) <= sr_fifo_lcd_r(I - 1);
-                sr_fifo_lcd_g(I) <= sr_fifo_lcd_g(I - 1);
-                sr_fifo_lcd_b(I) <= sr_fifo_lcd_b(I - 1);
-            end loop;
-
-            if i_VGA_clken = '1' then
-
-                v_r := i_VGA_R & i_VGA_R(0) & i_VGA_R(0);
-                v_g := i_VGA_G & i_VGA_G(0) & i_VGA_G(0);
-                v_b := i_VGA_B & i_VGA_B(0) & i_VGA_R(0);
-
-                sr_fifo_lcd_r(0) <= v_r;
-                sr_fifo_lcd_g(0) <= v_g;
-                sr_fifo_lcd_b(0) <= v_b;
-
-                lcd_de <= sr_disendly(0);
-                lcd_hs <= not i_VGA_hs;
-                lcd_vs <= not i_VGA_vs;
-
-                sr_disendly := '0' & sr_disendly(sr_disendly'high downto 1);
-
-                if i_VGA_MHZ12 = '1' then
-                    sr_disendly(37) := i_VGA_DE;
-                else
-                    sr_disendly(16) := i_VGA_DE;
-                end if;
-
-            end if;           
-        end if;
-    end process;
-
-
-    p_lcd_pixck:process(clock_48)
-    variable v_lcd_ck : std_logic_vector(3 downto 0) := "1100";
-    begin
-        if rising_edge(clock_48) then            
-            if v_lcd_ck = "0011" then
-                lcd_r <= SUM4(sr_fifo_lcd_r)(5 downto 1);
-                lcd_g <= SUM4(sr_fifo_lcd_g);
-                lcd_b <= SUM4(sr_fifo_lcd_b)(5 downto 1);
-            end if;
-            lcd_dclk <= v_lcd_ck(0);
-            v_lcd_ck := v_lcd_ck(0) & v_lcd_ck(v_lcd_ck'high downto 1);
-        end if;
-    end process;
-
-
 
     -- gpio <= audiol & audior & trace_rstn & trace_phi2 & trace_sync & trace_r_nw & trace_data;
 

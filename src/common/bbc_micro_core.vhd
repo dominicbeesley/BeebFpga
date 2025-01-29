@@ -1,4 +1,4 @@
--- BBC Micro Core, designed to be platform independant
+-- BBC Micro Core, designed to be platform independent
 --
 -- Copyright (c) 2015-2022 David Banks
 --
@@ -542,6 +542,7 @@ signal ttxt_r           :   std_logic;
 signal ttxt_g           :   std_logic;
 signal ttxt_b           :   std_logic;
 signal ttxt_y           :   std_logic;
+signal ttxt_pixde       :   std_logic;
 signal ttxt_active      :   std_logic;
 signal ttxt_ic15_clken  :   std_logic;
 signal ttxt_di_clken    :   std_logic;
@@ -870,14 +871,18 @@ begin
                 DI_RAM          => vid_mem_data,
                 nINVERT         => vidproc_invert_n,
                 DISEN           => vidproc_disen,
+                DISEN_U         => crtc_de,
                 CURSOR          => crtc_cursor,
                 R_IN            => r_in,
                 G_IN            => g_in,
                 B_IN            => b_in,
+                PIXDE_IN        => ttxt_pixde,
+                PIXCLKEN_IN     => ttxt_clken,
                 R               => r_out,
                 G               => g_out,
                 B               => b_out,
-                PIXCLKEN        => video_clken
+                PIXCLKEN        => video_clken,
+                PIXDE           => video_disen
             );
     end generate;
 
@@ -899,19 +904,22 @@ begin
                 DI_RAM          => vid_mem_data,
                 nINVERT         => vidproc_invert_n,
                 DISEN           => vidproc_disen,
+                DISEN_U         => crtc_de,
                 CURSOR          => crtc_cursor,
                 R_IN            => r_in,
                 G_IN            => g_in,
                 B_IN            => b_in,
+                PIXDE_IN        => ttxt_pixde,
+                PIXCLKEN_IN     => ttxt_clken,
                 R               => r_out,
                 G               => g_out,
                 B               => b_out,
-                PIXCLKEN        => video_clken
+                PIXCLKEN        => video_clken,
+                PIXDE           => video_disen
             );
         mhz12_active <= ttxt_active;
     end generate;
 
-    video_disen <= crtc_de; --TODO: DB: this is a naive attempt 
     video_mhz12 <= mhz12_active;
 
     teletext : entity work.saa5050
@@ -930,7 +938,8 @@ begin
             R        => ttxt_r,
             G        => ttxt_g,
             B        => ttxt_b,
-            Y        => ttxt_y
+            Y        => ttxt_y,
+            PIXDE    => ttxt_pixde
         );
 
     -- System VIA
