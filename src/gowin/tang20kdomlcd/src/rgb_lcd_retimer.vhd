@@ -121,18 +121,29 @@ architecture rtl of rgb_lcd_retimer is
 
     signal ctr_bl : unsigned(10 downto 0);
 
-    constant MAXPIXELSPERLIN : natural := 768;
+    constant MAXPIXELSPERLIN : natural := 2048;
+    constant MAXLINES : natural := 1024;
 
-    signal r_de_ctr : unsigned(numbits(MAXPIXELSPERLIN)-1 downto 0) := (others => '0');
-    signal r_min_de : unsigned(numbits(MAXPIXELSPERLIN)-1 downto 0) := (others => '1');
-    signal r_de_offset : unsigned(numbits(MAXPIXELSPERLIN)-1 downto 0) := (others => '1');
+    constant PIXELS_H : natural := 480;
+    constant PIXELS_V : natural := 272;
+
+    -- horizontal blanking regs
+    signal r_h_ctr : unsigned(numbits(MAXPIXELSPERLIN)-1 downto 0) := (others => '0');
+    signal r_h_min_de : unsigned(numbits(MAXPIXELSPERLIN)-1 downto 0) := (others => '1');
+    signal r_h_de_offset : unsigned(numbits(MAXPIXELSPERLIN)-1 downto 0) := (others => '1');
+    signal r_v_ctr : unsigned(numbits(MAXLINES)-1 downto 0);
+    signal r_v_min_de : unsigned(numbits(MAXLINES)-1 downto 0);
+    signal r_v_de_offset : unsigned(numbits(MAXLINES)-1 downto 0);
+
     signal r_vs_clken : std_logic;
     signal r_hs_clken : std_logic;
     signal r_had_de_line : std_logic := '0';
     signal r_had_de_field : std_logic := '0';
+    signal r_output_clken : std_logic;
 
 begin
 
+    -- LCD backlight PWM 
     p_bl:process(clock_48)
     begin
         if rising_edge(clock_48) then
@@ -140,68 +151,12 @@ begin
         end if;
     end process;
 
-    lcd_bl <= ctr_bl(ctr_bl'high) and ctr_bl(ctr_bl'high-1) ; -- 50% duty
+    lcd_bl <= ctr_bl(ctr_bl'high) and ctr_bl(ctr_bl'high-1) ; -- 25% duty
 
-    -- once per line pulse and once per 50hz field
-    p_hs:process(clock_48)
-    -- gate out spurious, we don't care so much where but how often, don't
-    variable v_prev_hsync : unsigned(3 downto 0); 
-    variable v_prev_vsync : unsigned(3 downto 0); 
-    begin
-        if rising_edge(clock_48) then
-            r_hs_clken <= '0';
-            r_vs_clken <= '0';
-            if video_hs = '1' then
-                if to_integer(v_prev_hsync) = 0 then
-                    r_hs_clken <= '1';
-                    -- look for field
-                    if video_vs = '1' then
-                        if v_prev_vsync = (others => '0') then
-                            r_vs_clken <= '1';
-                        end if;
-                        v_prev_vsync := (others => '1');
-                    end if;
-                else
-                    v_prev_vsync := v_prev_vsync - 1;
-                end if;
-                v_prev_hsync := (others => '1');
-            else
-                v_prev_hsync := v_prev_hsync - 1;
-            end if;
-        end if;
-    end process;
-
-    
-    p_measure_offset:process(clock_48)
-    begin
-        if rising_edge(clock_48) then
-            if r_vs_clken = '1' then
-                -- end of frame calc new de offset
-                if r_had_de_field = '1' then
-                    r_de_offset <= r_min_de;
-                end if;
-                r_had_de_field <= '0';
-                r_min_de <= (others => '1');
-            elsif r_hs_clken = '1' then
-                r_de_ctr <= (others => '0');
-                r_had_de_line <= '0';
-            elsif r_had_de_line = '0' then
-                if video_DE = '1' then
-                    if r_min_de < r_de_ctr then
-                        r_min_de <= r_de_ctr;
-                    end if;
-                    r_had_de_line <= '1';
-                    r_had_de_field <= '1';
-                end if;
-            end if;
-            r_de_ctr <= r_de_ctr + 1;
-        end if;
-    end process;
-
+    -- pixels in from core's 12/16MHz pixel clock
+    -- stuff into a fifo that is running at 48MHz and 
+    -- grab back out at the LCD's preferred rate 
     p_lcd_pix:process(clock_48)
-    variable v_r : std_logic_vector(5 downto 0);
-    variable v_g : std_logic_vector(5 downto 0);
-    variable v_b : std_logic_vector(5 downto 0);
     begin
         if rising_edge(clock_48) then
 
@@ -217,11 +172,7 @@ begin
                 sr_fifo_lcd_r(0) <= video_r;
                 sr_fifo_lcd_g(0) <= video_g;
                 sr_fifo_lcd_b(0) <= video_b;
-                if (r_de_ctr >= r_de_offset and r_de_ctr <= r_de_offset + 480) then
-                    sr_fifo_lcd_de(0) <= '1';
-                else
-                    sr_fifo_lcd_de(0) <= '0';
-                end if;
+                sr_fifo_lcd_de(0) <= video_DE;
 
                 lcd_hs <= not video_hs;
                 lcd_vs <= not video_vs;
@@ -230,20 +181,132 @@ begin
         end if;
     end process;
 
-    -- this process reforms the pixels from a 16 or 12 MHz rate to a fixed rate 
-    -- of 12 MHz. If 16->12MHZ then simple 3:4 pixel resampling will occur 
+
+    -- HS: once per line pulse - 1 output pixel wide
+    -- VS: once per 50hz field - 1 output pixel wide
+    p_hs:process(clock_48)
+    -- gate out spurious, we don't care so much where but how often, don't
+    variable v_prev_hsync : unsigned(3 downto 0); 
+    variable v_prev_vsync : unsigned(3 downto 0); 
+    begin
+        if rising_edge(clock_48) and r_output_clken = '1' then
+            r_hs_clken <= '0';
+            r_vs_clken <= '0';
+            if video_hs = '1' then
+                if to_integer(v_prev_hsync) = 0 then
+                    r_hs_clken <= '1';
+                    -- look for field
+                    if video_vs = '1' then
+                        if to_integer(v_prev_vsync) = 0 then
+                            r_vs_clken <= '1';
+                        end if;
+                        v_prev_vsync := (others => '1');
+                    else
+                        if to_integer(v_prev_vsync) > 0 then
+                            v_prev_vsync := v_prev_vsync - 1;
+                        end if;
+                    end if;
+                end if;
+                v_prev_hsync := (others => '1');
+            else
+                if to_integer(v_prev_hsync) > 0 then
+                    v_prev_hsync := v_prev_hsync - 1;
+                end if;
+            end if;
+        end if;
+    end process;
+
+    
+    p_measure_offset:process(clock_48)
+    variable v_DE : std_logic;
+    variable v_reset_h_ctr : boolean;
+    begin
+        if rising_edge(clock_48) and r_output_clken = '1' then
+
+            v_DE := or_reduce(sr_fifo_lcd_de(LCD_FIFO_LEN-4 to LCD_FIFO_LEN-1));
+
+            v_reset_h_ctr := false;
+
+            if r_vs_clken = '1' then
+                -- end of frame calc new de offset
+                if r_had_de_field = '1' then
+                    r_h_de_offset <= r_h_min_de;
+                    r_v_de_offset <= r_v_min_de;
+                end if;
+                r_had_de_field <= '0';
+                r_h_min_de <= (others => '1');
+                v_reset_h_ctr := true;
+                r_had_de_line <= '0';
+                r_v_ctr <= (others => '0');
+            elsif r_hs_clken = '1' then
+                v_reset_h_ctr := true;
+                r_had_de_line <= '0';
+                r_v_ctr <= r_v_ctr + 1;
+            elsif r_had_de_line = '0' then
+                if v_DE = '1' then
+                    if r_h_min_de > r_h_ctr then
+                        r_h_min_de <= r_h_ctr;
+                    end if;
+                    r_had_de_line <= '1';
+                    if r_had_de_field = '0' then
+                        r_had_de_field <= '1';
+                        r_v_min_de <= r_v_ctr;
+                    end if;
+                end if;
+            end if;
+            if v_reset_h_ctr then
+                r_h_ctr <= (others => '0');
+            else
+                r_h_ctr <= r_h_ctr + 1;
+            end if;
+        end if;
+    end process;
+
+    
+    -- form the output clock signal for the lcd and align with our pixel output
     p_lcd_pixck:process(clock_48)
     variable v_lcd_ck : std_logic_vector(3 downto 0) := "1100";
     begin
         if rising_edge(clock_48) then            
-            if v_lcd_ck = "0011" then
-                lcd_r <= SUM4(sr_fifo_lcd_r);
-                lcd_g <= SUM4(sr_fifo_lcd_g);
-                lcd_b <= SUM4(sr_fifo_lcd_b);
-                lcd_de <= or_reduce(sr_fifo_lcd_de(LCD_FIFO_LEN-4 to LCD_FIFO_LEN-1));
+            r_output_clken <= '0';
+            if v_lcd_ck = "1100" then
+                r_output_clken <= '1';
             end if;
             lcd_dclk <= v_lcd_ck(0);
             v_lcd_ck := v_lcd_ck(0) & v_lcd_ck(v_lcd_ck'high downto 1);
+        end if;
+    end process;
+
+    -- this process reforms the pixels from a 16 or 12 MHz rate to a fixed rate 
+    -- of 12 MHz. If 16->12MHZ then simple 3:4 pixel resampling will occur 
+    p_outout:process(clock_48)
+    begin
+        if rising_edge(clock_48) and r_output_clken = '1' then
+            lcd_r <= SUM4(sr_fifo_lcd_r);
+            lcd_g <= SUM4(sr_fifo_lcd_g);
+            lcd_b <= SUM4(sr_fifo_lcd_b);
+
+
+--            if r_h_ctr >= r_h_de_offset + 64 and r_h_ctr < r_h_de_offset + 416 then
+--                lcd_g(G_PX_OUT_WIDTH-2) <= '1';
+--            end if;
+--
+--            if r_v_ctr >= r_v_de_offset + 8 and r_v_ctr < r_v_de_offset + 264 then
+--                lcd_b(G_PX_OUT_WIDTH-2) <= '1';
+--            end if;
+--            if or_reduce(sr_fifo_lcd_de(LCD_FIFO_LEN-4 to LCD_FIFO_LEN-1)) = '1' then 
+--                lcd_de <= '1';
+--            else
+--                lcd_de <= '0';
+--            end if;
+
+            if (r_h_ctr >= r_h_de_offset and r_h_ctr < r_h_de_offset + PIXELS_H) and
+               (r_v_ctr >= r_v_de_offset and r_v_ctr < r_v_de_offset + PIXELS_V) then
+               lcd_de <= '1';
+            else
+               lcd_de <= '0';
+            end if;
+
         end if;
     end process;
 
