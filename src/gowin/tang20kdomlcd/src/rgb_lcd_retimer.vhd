@@ -126,6 +126,7 @@ architecture rtl of rgb_lcd_retimer is
 
     constant PIXELS_H : natural := 480;
     constant PIXELS_V : natural := 272;
+    constant H_FUDGE  : natural := 2;
 
     -- horizontal blanking regs
     signal r_h_ctr : unsigned(numbits(MAXPIXELSPERLIN)-1 downto 0) := (others => '0');
@@ -134,6 +135,7 @@ architecture rtl of rgb_lcd_retimer is
     signal r_v_ctr : unsigned(numbits(MAXLINES)-1 downto 0);
     signal r_v_min_de : unsigned(numbits(MAXLINES)-1 downto 0);
     signal r_v_de_offset : unsigned(numbits(MAXLINES)-1 downto 0);
+    signal r_v_de_offset2 : unsigned(numbits(MAXLINES)-1 downto 0);
 
     signal r_vs_clken : std_logic;
     signal r_hs_clken : std_logic;
@@ -184,7 +186,7 @@ begin
 
     -- HS: once per line pulse - 1 output pixel wide
     -- VS: once per 50hz field - 1 output pixel wide
-    p_hs:process(clock_48)
+    p_hs:process(clock_48, r_output_clken)
     -- gate out spurious, we don't care so much where but how often, don't
     variable v_prev_hsync : unsigned(3 downto 0); 
     variable v_prev_vsync : unsigned(3 downto 0); 
@@ -217,7 +219,7 @@ begin
     end process;
 
     
-    p_measure_offset:process(clock_48)
+    p_measure_offset:process(clock_48, r_output_clken)
     variable v_DE : std_logic;
     variable v_reset_h_ctr : boolean;
     begin
@@ -230,8 +232,9 @@ begin
             if r_vs_clken = '1' then
                 -- end of frame calc new de offset
                 if r_had_de_field = '1' then
-                    r_h_de_offset <= r_h_min_de;
+                    r_h_de_offset <= r_h_min_de + H_FUDGE;
                     r_v_de_offset <= r_v_min_de;
+                    r_v_de_offset2 <= r_v_de_offset;
                 end if;
                 r_had_de_field <= '0';
                 r_h_min_de <= (others => '1');
@@ -301,7 +304,7 @@ begin
 --            end if;
 
             if (r_h_ctr >= r_h_de_offset and r_h_ctr < r_h_de_offset + PIXELS_H) and
-               (r_v_ctr >= r_v_de_offset and r_v_ctr < r_v_de_offset + PIXELS_V) then
+               (r_v_ctr >= r_v_de_offset2 and r_v_ctr < r_v_de_offset2 + PIXELS_V) then
                lcd_de <= '1';
             else
                lcd_de <= '0';
