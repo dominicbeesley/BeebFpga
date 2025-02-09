@@ -62,6 +62,7 @@ entity bbc_micro_core is
         IncludeMusic5000       : boolean := false;
         IncludeMusic5000Filter : boolean := false; -- Music 5000 IIR Filter
         IncludeMusic5000SPDIF  : boolean := false; -- Music 5000 20-bit SPDIF Output
+        IncludeSN76489SPDIF    : boolean := false;
         IncludeICEDebugger     : boolean := false;
         IncludeCoPro6502       : boolean := false; -- The three co pro options
         IncludeCoProSPI        : boolean := false; -- are currently mutually exclusive
@@ -114,7 +115,10 @@ entity bbc_micro_core is
         audio_l        : out   std_logic_vector (15 downto 0);
         audio_r        : out   std_logic_vector (15 downto 0);
         m5k_filter_en  : in    std_logic := '1';
-        m5k_spdif      : out   std_logic;
+        m5k_spdif      : out   std_logic; -- SPDIF from Music 5000
+        m5k_active     : out   std_logic; -- Active indicator for Music 2000
+        sn76489_spdif  : out   std_logic; -- SPDIF from SN76489
+        audio_spdif    : out   std_logic; -- SPDIF from which ever is active
 
         -- External memory (e.g. SRAM and/or FLASH)
         -- 512KB logical address space
@@ -461,6 +465,7 @@ signal cpu_clken        :   std_logic; -- 2 MHz cycles in which the CPU is enabl
 -- IO cycles are out of phase with the CPU
 signal mhz16_clken      :   std_logic; -- 16 MHz, used by the Video ULA
 signal ttxt_clken       :   std_logic := '0'; -- 12 MHz used by SAA 5050 (24MHz in VGA mode)
+signal mhz8_clken       :   std_logic; -- Used by SPDIF
 signal mhz6_clken       :   std_logic; -- 6 MHz used by Music 5000
 signal mhz4_clken       :   std_logic; -- Used by 6522
 signal mhz1_clken       :   std_logic; -- 1 MHz bus and associated peripherals, 6522 phase 2
@@ -683,7 +688,8 @@ signal ps2_mse_data_out :   std_logic;
 
 -- Sound generator
 signal sound_di         :   std_logic_vector(7 downto 0);
-signal sound_ao         :   unsigned(13 downto 0);
+signal sound_ao         :   unsigned(13 downto 0); -- 14 bit unsigned
+signal sound_ao_pcm     :   unsigned(13 downto 0); -- 14 bit signed
 
 -- Optional SID
 signal sid_ao           :   std_logic_vector(17 downto 0);
@@ -1362,6 +1368,7 @@ begin
             signal channelA : std_logic;
             signal load     : std_logic;
             signal sample   : std_logic_vector(19 downto 0);
+            signal acounter : std_logic_vector(7 downto 0);
         begin
             load   <= '1' when unsigned(cycle(5 downto 0)) = 1 else '0';
             sample <= audio_l_tmp & "00" when channelA = '1' else audio_r_tmp & "00";
@@ -1375,6 +1382,28 @@ begin
                     channelA     => channelA,
                     spdifOut     => m5k_spdif
                     );
+
+            process(clock_48)
+            begin
+                if rising_edge(clock_48) then
+                    if mhz6_clken = '1' then
+                        if reset_n = '0' then
+                            m5k_active <= '0';
+                            acounter <= x"00";
+                        elsif load = '1' then
+                            if sample(0) = '1' then
+                                m5k_active <= '1';
+                                acounter <= x"00";
+                            elsif acounter = x"FF" then -- if quiet for 255 samples then mark as inactive
+                                m5k_active <= '0';
+                            else
+                                acounter <= acounter + '1';
+                            end if;
+                        end if;
+                    end if;
+                end if;
+            end process;
+
         end generate;
 
     end generate;
@@ -1494,8 +1523,59 @@ begin
             data_i => sound_di,
             wr_n_i => sound_enable_n,
             ce_n_i => '0',
-            mix_audio_o => sound_ao
+            mix_audio_o => sound_ao,
+            pcm14s_o => sound_ao_pcm
             );
+
+--------------------------------------------------------
+-- SN76489 SPDIF
+--------------------------------------------------------
+
+    gen_sn76489_spdif : if IncludeSN76489SPDIF generate
+        signal divider  : unsigned(5 downto 0) := (others => '0');
+        signal channelA : std_logic;
+        signal load     : std_logic := '0';
+        signal sample   : std_logic_vector(19 downto 0);
+    begin
+        -- Beeb Audio is at 125KHz
+        -- Sample at 1/2 of that = 62.5KHz
+        process(clock_48)
+        begin
+            if rising_edge(clock_48) then
+                if mhz8_clken = '1' then
+                    divider <= divider + 1;
+                    if divider = 0 then
+                        load <= '1';
+                        if channelA = '1' then -- TODO: check this gives the correct channel phasing
+                            sample <= std_logic_vector(sound_ao_pcm(13) & sound_ao_pcm) & "00000";
+                        end if;
+                    else
+                        load <= '0';
+                    end if;
+                end if;
+            end if;
+        end process;
+
+        spdif_serialize_inst : component spdif_serializer
+            port map (
+                clk          => clock_48,
+                clken        => mhz8_clken,
+                auxAudioBits => (others => '0'),
+                sample       => sample,
+                load         => load,
+                channelA     => channelA,
+                spdifOut     => sn76489_spdif
+                );
+
+     end generate;
+
+--------------------------------------------------------
+-- Overall SPDIF
+--------------------------------------------------------
+
+    audio_spdif <= m5k_spdif     when IncludeMusic5000SPDIF and m5k_active = '1' else
+                   sn76489_spdif when IncludeSN76489SPDIF                        else
+                   '0';
 
 --------------------------------------------------------
 -- Sound Mixer
@@ -1549,6 +1629,7 @@ begin
     end process;
     audio_l <= audio_l_int;
     audio_r <= audio_r_int;
+
 
 --------------------------------------------------------
 -- Reset generation
@@ -1675,6 +1756,13 @@ begin
                 ttxt_clken <= '1';
             else
                 ttxt_clken <= '0';
+            end if;
+
+            -- 4MHz clock enable
+            if div3_counter = 1 and clken_counter(0) = '1' then
+                mhz8_clken <= '1';
+            else
+                mhz8_clken <= '0';
             end if;
 
             -- 6MHz clock enable (for Music 5000)
