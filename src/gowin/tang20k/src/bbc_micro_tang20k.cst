@@ -54,9 +54,9 @@ IO_PORT "i2s_din" IO_TYPE=LVCMOS33 PULL_MODE=DOWN;
 IO_LOC "pa_en" 51;
 IO_PORT "pa_en" IO_TYPE=LVCMOS33 PULL_MODE=DOWN;
 
-// Music5000 SPDIF Output
-IO_LOC "m5k_spdif" 86;
-IO_PORT "m5k_spdif" IO_TYPE=LVCMOS33;
+// Audio SPDIF Output
+IO_LOC "audio_spdif" 86;
+IO_PORT "audio_spdif" IO_TYPE=LVCMOS33;
 
 // GPIO
 //IO_LOC  "gpio[13]" ;
