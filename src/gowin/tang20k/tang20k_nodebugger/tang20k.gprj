@@ -67,6 +67,9 @@
         <File path="../src/fifo_sc_hs/WatchEventsCore.vhd" type="file.vhdl" enable="1"/>
         <File path="../src/ws2812.v" type="file.verilog" enable="1"/>
         <File path="../src/i2s_simple.vhd" type="file.vhdl" enable="1"/>
+        <File path="../../../../../SampleRateConverter/vhdl/coeff_rom.vhd" type="file.vhdl" enable="1"/>
+        <File path="../../../../../SampleRateConverter/vhdl/sample_rate_converter_pkg.vhd" type="file.vhdl" enable="1"/>
+        <File path="../../../../../SampleRateConverter/vhdl/sample_rate_converter.vhd" type="file.vhdl" enable="1"/>
         <File path="src/board_config_pack.vhd" type="file.vhdl" enable="1"/>
         <File path="src/board_timings.sdc" type="file.sdc" enable="1"/>
     </FileList>

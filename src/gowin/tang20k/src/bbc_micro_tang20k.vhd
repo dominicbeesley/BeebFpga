@@ -60,7 +60,8 @@ entity bbc_micro_tang20k is
         IncludeMusic5000       : boolean := true;
         IncludeMusic5000Filter : boolean := true; -- Music 5000 Low Pass IIR Filter
         IncludeMusic5000SPDIF  : boolean := true; -- Music 5000 20-bit SPDIF Output
-        IncludeSN76489SPDIF    : boolean := true; -- SN76489 SPDIF Output
+        IncludeMixerResampler  : boolean := true;
+        IncludeMixerSPDIF      : boolean := false;
         IncludeICEDebugger     : boolean := G_CONFIG_DEBUGGER;
         IncludeVideoNuLA       : boolean := true;
         IncludeTrace           : boolean := true;
@@ -360,7 +361,8 @@ begin
             IncludeMusic5000       => IncludeMusic5000,
             IncludeMusic5000Filter => IncludeMusic5000Filter,
             IncludeMusic5000SPDIF  => IncludeMusic5000SPDIF,
-            IncludeSN76489SPDIF    => IncludeSN76489SPDIF,
+            IncludeMixerResampler  => IncludeMixerResampler,
+            IncludeMixerSPDIF      => IncludeMixerSPDIF,
             IncludeICEDebugger     => IncludeICEDebugger,
             IncludeCoPro6502       => IncludeCoPro6502,
             IncludeCoProSPI        => false,
@@ -392,7 +394,7 @@ begin
             audio_l         => audio_l,
             audio_r         => audio_r,
             m5k_filter_en   => m5k_filter_en,
-            audio_spdif     => audio_spdif,
+            m5k_spdif       => audio_spdif,
             ext_nOE         => ext_nOE,
             ext_nWE         => ext_nWE,
             ext_nWE_long    => ext_nWE_long,
