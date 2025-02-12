@@ -54,9 +54,6 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
 use ieee.numeric_std.all;
 
-library work;
-use work.sample_rate_converter_pkg.all;
-
 entity bbc_micro_core is
     generic (
         IncludeAMXMouse        : boolean := false;
@@ -65,8 +62,7 @@ entity bbc_micro_core is
         IncludeMusic5000       : boolean := false;
         IncludeMusic5000Filter : boolean := false; -- Music 5000 IIR Filter
         IncludeMusic5000SPDIF  : boolean := false; -- Music 5000 20-bit SPDIF Output
-        IncludeMixerResampler  : boolean := false;  -- Include polyphase filter based resampler
-        IncludeMixerSPDIF      : boolean := false;
+        IncludePSGSPDIF        : boolean := false; -- PSG (SN76489) 20-bit SPDIF Output
         IncludeICEDebugger     : boolean := false;
         IncludeCoPro6502       : boolean := false; -- The three co pro options
         IncludeCoProSPI        : boolean := false; -- are currently mutually exclusive
@@ -115,12 +111,25 @@ entity bbc_micro_core is
         video_vsync    : out   std_logic;
         video_hsync    : out   std_logic;
 
-        -- Audio
+        -- Mixed Audio Out (16 bits for backwards compatibility)
         audio_l        : out   std_logic_vector (15 downto 0);
         audio_r        : out   std_logic_vector (15 downto 0);
+
+        -- PSG Audio
+        psg_audio      : out   signed(17 downto 0);
+        psg_strobe     : out   std_logic;
+        psg_spdif      : out   std_logic;
+
+        -- M5K Audio
         m5k_filter_en  : in    std_logic := '1';
-        m5k_spdif      : out   std_logic; -- SPDIF from Music 5000
-        audio_spdif    : out   std_logic; -- SPDIF from which ever is active
+        m5k_audio_l    : out   signed(17 downto 0);
+        m5k_audio_r    : out   signed(17 downto 0);
+        m5k_strobe     : out   std_logic;
+        m5k_spdif      : out   std_logic;
+
+        -- SID Audio
+        sid_audio      : out   signed(17 downto 0);
+        sid_strobe     : out   std_logic;
 
         -- External memory (e.g. SRAM and/or FLASH)
         -- 512KB logical address space
@@ -235,6 +244,11 @@ entity bbc_micro_core is
         trace_sync     : out   std_logic;
         trace_rstn     : out   std_logic;
         trace_phi2     : out   std_logic;
+
+        -- HDMI Audio In (from an external mixer)
+        hdmi_audio_ext : in    std_logic := '0';
+        hdmi_audio_r   : in    std_logic_vector (15 downto 0) := (others => '0');
+        hdmi_audio_l   : in    std_logic_vector (15 downto 0) := (others => '0');
 
         -- HDMI Video
         hdmi_aspect    : in    std_logic_vector(1 downto 0) := "00";
@@ -572,6 +586,8 @@ signal hsync1           :   std_logic;
 signal vsync1           :   std_logic;
 signal hcnt             :   std_logic_vector(9 downto 0);
 signal vcnt             :   std_logic_vector(9 downto 0);
+signal hdmi_audio_tmp_l :   std_logic_vector(15 downto 0);
+signal hdmi_audio_tmp_r :   std_logic_vector(15 downto 0);
 signal hdmi_aspect_169  :   std_logic;
 signal hdmi_red         :   std_logic_vector(3 downto 0);
 signal hdmi_green       :   std_logic_vector(3 downto 0);
@@ -692,6 +708,7 @@ signal ps2_mse_data_out :   std_logic;
 signal sound_di         :   std_logic_vector(7 downto 0);
 signal sound_ao         :   unsigned(13 downto 0); -- 14 bit unsigned
 signal sound_ao_pcm     :   unsigned(13 downto 0); -- 14 bit signed
+signal sound_strobe     :   std_logic;
 
 -- Optional SID
 signal sid_ao           :   std_logic_vector(17 downto 0);
@@ -701,13 +718,7 @@ signal sid_enable       :   std_logic;
 -- Optional Music5000
 signal music5000_ao_l   :   std_logic_vector(15 downto 0);
 signal music5000_ao_r   :   std_logic_vector(15 downto 0);
-signal music5000_load   :   std_logic;
 signal music5000_do     :   std_logic_vector(7 downto 0);
-
--- Optional MixerResampler
-signal mixer_l          : signed(19 downto 0);
-signal mixer_r          : signed(19 downto 0);
-signal mixer_load       : std_logic;
 
 -- Optional Tube
 signal tube_do          :   std_logic_vector(7 downto 0);
@@ -1272,8 +1283,7 @@ begin
 -- Optional SID
 --------------------------------------------------------
 
-    Optional_SID: if IncludeSID generate
-
+    GenSID: if IncludeSID generate
         Inst_sid6581: entity work.sid6581
             port map (
                 clk_1MHz   => clock_48,
@@ -1291,13 +1301,23 @@ begin
                 audio_out  => open,
                 audio_data => sid_ao
             );
+        -- External ports
+        sid_audio  <= signed(sid_ao - ("10" & x"0000"));
+        sid_strobe <= mhz1_clken;
     end generate;
+
+    GenNotSID: if not IncludeSID generate
+        -- External ports
+        sid_audio  <= to_signed(0, sid_audio'length);
+        sid_strobe <= '0';
+    end generate;
+
 
 --------------------------------------------------------
 -- Optional Music 5000
 --------------------------------------------------------
 
-    Optional_Music5000: if IncludeMusic5000 generate
+    GenMusic5000: if IncludeMusic5000 generate
 
         -- This value is chosen so the IIR filter gain is close to unity
         constant dacwidth : integer := 18;
@@ -1364,10 +1384,14 @@ begin
             audio_r_tmp <= audio_r_fin;
         end generate;
 
+        -- External ports
+        m5k_audio_l <= signed(audio_l_tmp);
+        m5k_audio_r <= signed(audio_r_tmp);
+        m5k_strobe  <= mhz6_clken when unsigned(cycle(6 downto 0)) = 1 else '0';
+
         -- Convert from 18-bit back to 16-bit when is what the Beeb Core expects
         music5000_ao_l <= audio_l_tmp(dacwidth - 1 downto dacwidth - 16);
         music5000_ao_r <= audio_r_tmp(dacwidth - 1 downto dacwidth - 16);
-        music5000_load <= '1' when unsigned(cycle(6 downto 0)) = 1 else '0';
 
         ------------------------------------------------
         -- Music5000 SPDIF Output
@@ -1392,7 +1416,13 @@ begin
                     spdifOut     => m5k_spdif
                     );
         end generate;
+    end generate;
 
+    GenNotMusic5000: if not IncludeMusic5000 generate
+        m5k_spdif   <= '0';
+        m5k_audio_l <= to_signed(0, m5k_audio_l'length);
+        m5k_audio_r <= to_signed(0, m5k_audio_r'length);
+        m5k_strobe  <= '0';
     end generate;
 
 --------------------------------------------------------
@@ -1511,105 +1541,39 @@ begin
             wr_n_i => sound_enable_n,
             ce_n_i => '0',
             mix_audio_o => sound_ao,
-            pcm14s_o => sound_ao_pcm
+            pcm14s_o => sound_ao_pcm,
+            strobe_o => sound_strobe
             );
 
---------------------------------------------------------
--- Sound Mixer
---------------------------------------------------------
-
-    -- TODO clean up to avoid using hard coded width constants
-
---    process(sound_ao, sid_ao, music5000_ao_l, music5000_ao_r)
---        variable l : std_logic_vector(15 downto 0);
---        variable r : std_logic_vector(15 downto 0);
---    begin
---        l := std_logic_vector(sound_ao) & "00000000";
---        r := std_logic_vector(sound_ao) & "00000000";
---        if IncludeSID or IncludeMusic5000 then
---            l := l(15) & l(15 downto 1);
---            r := r(15) & r(15 downto 1);
---            if IncludeSID then
---                l := l + (sid_ao(17) & sid_ao(17 downto 3));
---                r := r + (sid_ao(17) & sid_ao(17 downto 3));
---            end if;
---            if IncludeMusic5000 then
---                l := l + (music5000_ao_l(15) & music5000_ao_l(15 downto 1));
---                r := r + (music5000_ao_r(15) & music5000_ao_r(15 downto 1));
---            end if;
---        end if;
---        audio_l <= l;
---        audio_r <= r;
---    end process;
-
-
-    gen_resampler: if IncludeMixerResampler generate
-        signal cycle          : std_logic_vector(6 downto 0);
-        signal filt_load      : std_logic;
-        signal channel_in      : t_sample_array;
-        signal channel_clken   : std_logic_vector(NUM_CHANNELS - 1 downto 0);
-        signal channel_load    : std_logic_vector(NUM_CHANNELS - 1 downto 0);
-    begin
-
-        channel_clken <= mhz6_clken & mhz6_clken & mhz6_clken & mhz6_clken;
-        channel_load  <= music5000_load & music5000_load & "00";
-        channel_in    <= ( to_signed(0, SAMPLE_WIDTH), to_signed(0, SAMPLE_WIDTH), signed(music5000_ao_l & "00"), signed(music5000_ao_r & "00"));
-
-    sample_rate_converter_inst : entity work.sample_rate_converter
-        generic map (
-            OUTPUT_RATE       => 1000,           -- 48KHz
-            OUTPUT_WIDTH      => 20,             -- 20 bits
-            FILTER_NTAPS      => 3840,
-            FILTER_L          => (6, 24, 128, 128),
-            FILTER_M          => 125,
-            CHANNEL_TYPE      => (mono, mono, left_channel, right_channel),
-            BUFFER_A_WIDTH    => 10,             -- 1K Words
-            COEFF_A_WIDTH     => 11,             -- 2K Words
-            ACCUMULATOR_WIDTH => 54,
-            BUFFER_WIDTH      => (9, 7, 5, 5)    -- powers of two
-            )
-        port map (
-            clk               => clock_48,
-            reset_n           => reset_n,
-            channel_clken     => channel_clken,
-            channel_load      => channel_load,
-            channel_in        => channel_in,
-            mixer_load        => mixer_load,
-            mixer_l           => mixer_l,
-            mixer_r           => mixer_r
-            );
-        audio_l_int <= std_logic_vector(mixer_l(19 downto 4));
-        audio_r_int <= std_logic_vector(mixer_r(19 downto 4));
-    end generate;
+    -- External ports
+    psg_audio  <= signed((17 downto 14 => sound_ao(13)) & sound_ao_pcm);
+    psg_strobe <= sound_strobe and mhz4_clken;
 
 --------------------------------------------------------
--- Mixer SPDIF
+-- Optional PSG SPDIF
 --------------------------------------------------------
 
-    gen_sn76489_spdif : if IncludeMixerSPDIF generate
-        signal divider  : unsigned(9 downto 0) := (others => '0');
+    GenPSGSPDIF : if IncludePSGSPDIF generate
+        signal divider  : unsigned(5 downto 0) := (others => '0');
         signal channelA : std_logic;
         signal load     : std_logic := '0';
         signal sample   : std_logic_vector(19 downto 0);
     begin
-        -- Mixer Audio is at 48KHz
-        -- SPDIF serializer needs a clock of 6.144MHz which we have no way to generate from 48MHz
+        -- Beeb Audio is at 125KHz
+        -- Sample at 1/2 of that = 62.5KHz
         process(clock_48)
         begin
             if rising_edge(clock_48) then
-                if divider = 0 then
-                    divider <= to_unsigned(999, 10);
-                else
+                if mhz8_clken = '1' then
                     divider <= divider + 1;
-                end if;
-                if divider = 0 then
-                    load <= '1';
-                    sample <= std_logic_vector(mixer_l);
-                elsif divider = 0 then
-                    load <= '1';
-                    sample <= std_logic_vector(mixer_r);
-                else
-                    load <= '0';
+                    if divider = 0 then
+                        load <= '1';
+                        if channelA = '1' then -- TODO: check this gives the correct channel phasing
+                            sample <= std_logic_vector(sound_ao_pcm(13) & sound_ao_pcm) & "00000";
+                        end if;
+                    else
+                        load <= '0';
+                    end if;
                 end if;
             end if;
         end process;
@@ -1622,39 +1586,42 @@ begin
                 sample       => sample,
                 load         => load,
                 channelA     => channelA,
-                spdifOut     => audio_spdif
+                spdifOut     => psg_spdif
                 );
-
     end generate;
 
-    gen_no_resampler: if not IncludeMixerResampler generate
-
-        -- This version assumes only one source is playing at once
-        process(sound_ao, sid_ao, music5000_ao_l, music5000_ao_r)
-            variable l : std_logic_vector(15 downto 0);
-            variable r : std_logic_vector(15 downto 0);
-        begin
-            -- SN76489 output is 14-bit unsigned and is 0x00 when no sound is playing
-            -- attenuate by one bit as to try to match level with other sources
-            l := "00" & std_logic_vector(sound_ao);
-            r := "00" & std_logic_vector(sound_ao);
-            if IncludeSID then
-                -- SID output is 16-bit unsigned
-                l := l + (sid_ao(17 downto 2) - x"8000");
-                r := r + (sid_ao(17 downto 2) - x"8000");
-            end if;
-            if IncludeMusic5000 then
-                -- Music 5000 output is 16-bit signed
-                l := l + music5000_ao_l;
-                r := r + music5000_ao_r;
-            end if;
-            audio_l_int <= l;
-            audio_r_int <= r;
-        end process;
+    GenNotPSGSPDIF : if not IncludePSGSPDIF generate
+        psg_spdif <= '0';
     end generate;
 
+--------------------------------------------------------
+-- Sound Mixer
+--------------------------------------------------------
+
+    process(sound_ao, sid_ao, music5000_ao_l, music5000_ao_r)
+        variable l : std_logic_vector(15 downto 0);
+        variable r : std_logic_vector(15 downto 0);
+    begin
+        -- SN76489 output is 14-bit unsigned and is 0x00 when no sound is playing
+        -- attenuate by one bit as to try to match level with other sources
+        l := "00" & std_logic_vector(sound_ao);
+        r := "00" & std_logic_vector(sound_ao);
+        if IncludeSID then
+            -- SID output is 16-bit unsigned
+            l := l + (sid_ao(17 downto 2) - x"8000");
+            r := r + (sid_ao(17 downto 2) - x"8000");
+        end if;
+        if IncludeMusic5000 then
+            -- Music 5000 output is 16-bit signed
+            l := l + music5000_ao_l;
+            r := r + music5000_ao_r;
+        end if;
+        audio_l_int <= l;
+        audio_r_int <= r;
+    end process;
     audio_l <= audio_l_int;
     audio_r <= audio_r_int;
+
 
 --------------------------------------------------------
 -- Reset generation
@@ -2757,13 +2724,16 @@ begin
                 I_ASPECT_169     => hdmi_aspect_169,
                 -- PCM audio
                 I_AUDIO_ENABLE   => hdmi_audio_en,
-                I_AUDIO_PCM_L    => audio_l_int,
-                I_AUDIO_PCM_R    => audio_r_int,
+                I_AUDIO_PCM_L    => hdmi_audio_tmp_l,
+                I_AUDIO_PCM_R    => hdmi_audio_tmp_r,
                 -- TMDS parallel pixel synchronous outputs (serialize LSB first)
                 O_RED            => tmds_r,
                 O_GREEN          => tmds_g,
                 O_BLUE           => tmds_b
                 );
+
+        hdmi_audio_tmp_l <= hdmi_audio_l when hdmi_audio_ext = '1' else audio_l_int;
+        hdmi_audio_tmp_r <= hdmi_audio_r when hdmi_audio_ext = '1' else audio_r_int;
 
     end generate;
 

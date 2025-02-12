@@ -131,6 +131,7 @@ port
    ; noise_o            : out    unsigned(11 downto 0)
    ; mix_audio_o        : out    unsigned(13 downto 0)
    ; pcm14s_o           : out    unsigned(13 downto 0)
+   ; strobe_o           : out    std_logic
 );
 end sn76489_audio;
 
@@ -290,6 +291,9 @@ architecture rtl of sn76489_audio is
    signal pcm14s_r            : unsigned(13 downto 0) := (others => '0');
 
 begin
+
+   -- Output strobe
+   strobe_o <= en_cnt_r;
 
    -- Register the input data at the full clock rate.
    process ( clk_i ) begin
