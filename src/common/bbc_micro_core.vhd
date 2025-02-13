@@ -1302,7 +1302,7 @@ begin
                 audio_data => sid_ao
             );
         -- External ports
-        sid_audio  <= signed(sid_ao - ("10" & x"0000"));
+        sid_audio  <= signed(sid_ao xor ("10" & x"0000"));
         sid_strobe <= mhz1_clken;
     end generate;
 
@@ -1546,7 +1546,7 @@ begin
             );
 
     -- External ports
-    psg_audio  <= signed((17 downto 14 => sound_ao(13)) & sound_ao_pcm);
+    psg_audio  <= signed((17 downto 14 => sound_ao_pcm(13)) & sound_ao_pcm);
     psg_strobe <= sound_strobe and mhz4_clken;
 
 --------------------------------------------------------
