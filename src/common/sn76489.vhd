@@ -483,18 +483,6 @@ begin
          null;
       end case;
 
-      -- Reset registers as per power up
-      if reset_n_i = '0' then
-          ch_a_period_x <= (others => '0');
-          ch_a_level_x  <= (others => '1');
-          ch_b_period_x <= (others => '0');
-          ch_b_level_x  <= (others => '0');
-          ch_c_period_x <= (others => '0');
-          ch_c_level_x  <= (others => '0');
-          noise_ctrl_x  <= '0';
-          noise_shift_x <= (others => '0');
-          noise_level_x <= (others => '0');
-     end if;
    end process;
 
 
@@ -506,7 +494,18 @@ begin
 
          noise_rst_r <= noise_rst_x;
 
-         if en_reg_wr_s = '1' then
+         -- Reset registers as per power up
+         if reset_n_i = '0' then
+             ch_a_period_r <= (others => '0');
+             ch_a_level_r  <= (others => '1');
+             ch_b_period_r <= (others => '0');
+             ch_b_level_r  <= (others => '0');
+             ch_c_period_r <= (others => '0');
+             ch_c_level_r  <= (others => '0');
+             noise_ctrl_r  <= '0';
+             noise_shift_r <= (others => '0');
+             noise_level_r <= (others => '0');
+         elsif en_reg_wr_s = '1' then
             -- Latch the register when the write specifies a register.
             reg_addr_r     <= reg_sel_s;
 
