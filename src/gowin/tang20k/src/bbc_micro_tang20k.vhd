@@ -304,7 +304,13 @@ architecture rtl of bbc_micro_tang20k is
     signal m5k_audio_r     : signed(17 downto 0);
     signal m5k_strobe      : std_logic;
     signal mixer_strobe    : std_logic;
+
+    ---test output toggled by the mixer_strobe (system clock domain)
+    -- for comparison with spdif_load
     signal toggle          : std_logic := '0';
+
+    -- output used to load sample into SPDIF (spdif clock domain)
+    signal spdif_load      : std_logic;
 
     signal config_counter  : std_logic_vector(21 downto 0);
     signal config_last     : std_logic;
@@ -691,7 +697,6 @@ begin
         signal mixer_l         : signed(19 downto 0);
         signal mixer_r         : signed(19 downto 0);
         signal spdif_in        : std_logic_vector(19 downto 0);
-        signal spdif_load      : std_logic;
         signal channelA        : std_logic;
         signal div64           : unsigned(5 downto 0) := (others => '0');
 --        signal mhz6_clken      : std_logic;
@@ -754,7 +759,6 @@ begin
         process(spdif_clk)
         begin
             if rising_edge(spdif_clk) then
-                toggle <= not toggle;
                 div64 <= div64 + 1;
                 if div64 = 0 then
                     spdif_load <= '1';
@@ -1122,6 +1126,16 @@ begin
 
     -- gpio <= audiol & audior & trace_rstn & trace_phi2 & trace_sync & trace_r_nw & not clock_48 & pll1_lock & not clock_27 & pll2_lock & hsync_ref & clkdiv_reset_n & "00";
 
-    gpio <= psg_strobe & mixer_strobe & toggle & "0";
+    -- Toggle is a test output, for comparison with spdif_load
+    process(clock_48)
+    begin
+        if rising_edge(clock_48) then
+            if mixer_strobe = '1' then
+                toggle <= not toggle;
+            end if;
+        end if;
+    end process;
+
+    gpio <= psg_strobe & mixer_strobe & spdif_load & toggle;
 
 end architecture;
