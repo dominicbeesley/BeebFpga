@@ -125,6 +125,10 @@
         <File path="../../../../AtomBusMon/src/T6502/T65_MCode.vhd" type="file.vhdl" enable="1"/>
         <File path="../../../../AtomBusMon/src/T6502/T65_Pack.vhd" type="file.vhdl" enable="1"/>
         <File path="../../../../AtomBusMon/src/T6502/T65.vhd" type="file.vhdl" enable="1"/>
+        <File path="../../../common/audioresampler/buffer_ram.vhd" type="file.vhdl" enable="1"/>
+        <File path="../../../common/audioresampler/coeff_rom.vhd" type="file.vhdl" enable="1"/>
+        <File path="../../../common/audioresampler/sample_rate_converter.vhd" type="file.vhdl" enable="1"/>
+        <File path="../../../common/audioresampler/sample_rate_converter_pkg.vhd" type="file.vhdl" enable="1"/>
         <File path="../../../common/bbc_micro_core.vhd" type="file.vhdl" enable="1"/>
         <File path="../../../common/CoPro6502.vhd" type="file.vhdl" enable="1"/>
         <File path="../../../common/hdmi/encoder.vhd" type="file.vhdl" enable="1"/>

@@ -46,6 +46,7 @@ use ieee.numeric_std.all;
 
 library work;
 use work.board_config_pack.all;
+use work.sample_rate_converter_pkg.all;
 
 entity bbc_micro_tang20k is
     generic (
@@ -56,12 +57,11 @@ entity bbc_micro_tang20k is
 
         IncludeAMXMouse        : boolean := false;
         IncludeSPISD           : boolean := true;
-        IncludeSID             : boolean := false;
+        IncludeSID             : boolean := true;
         IncludeMusic5000       : boolean := true;
         IncludeMusic5000Filter : boolean := true; -- Music 5000 Low Pass IIR Filter
         IncludeMusic5000SPDIF  : boolean := true; -- Music 5000 20-bit SPDIF Output
         IncludeMixerResampler  : boolean := true;
-        IncludeMixerSPDIF      : boolean := false;
         IncludeICEDebugger     : boolean := G_CONFIG_DEBUGGER;
         IncludeVideoNuLA       : boolean := true;
         IncludeTrace           : boolean := true;
@@ -72,17 +72,28 @@ entity bbc_micro_tang20k is
         IncludeSoftLEDs        : boolean := true;
         IncludeI2SAudio        : boolean := true;
 
+        MinVolume              : integer := 0;
+        DefaultVolume          : integer := 63;
+        MaxVolume              : integer := 127; -- TODO this can go up to 255 once everything is working
+
         PRJ_ROOT               : string  := "../../../..";
         MOS_NAME               : string  := "/roms/bbcb/os12_basic.bit";
         SIM                    : boolean := false
         );
     port (
-        sys_clk         : in    std_logic;
+        sys_clk         : in    std_logic;     -- 27MHz clock from the oscillator (pin 4)
+                                               -- or from the SI5351 CLK1 (pin 10)
+
+        spdif_clk       : in    std_logic;     -- 6.144MHz clock from the SI5351 CLK1 (pin 11)
+
         btn1            : in    std_logic;     -- Toggle Master / Beeb modes
         btn2            : in    std_logic;     -- Toggle HDMI / DVI modes
         led             : out   std_logic_vector (5 downto 0);
         ws2812_din      : out   std_logic;
 
+
+        -- Test/GPIO
+        gpio            : out   std_logic_vector(3 downto 0);
 
         -- Keyboard / Mouse
         ps2_clk         : inout std_logic;
@@ -273,16 +284,31 @@ architecture rtl of bbc_micro_tang20k is
     signal clock_135       : std_logic;
     signal mem_ready       : std_logic;
 
+    -- Audio
     signal dac_l_in        : std_logic_vector(9 downto 0);
     signal dac_r_in        : std_logic_vector(9 downto 0);
     signal audio_l         : std_logic_vector(15 downto 0);
     signal audio_r         : std_logic_vector(15 downto 0);
     signal audiol          : std_logic;
     signal audior          : std_logic;
+    signal volume          : unsigned(7 downto 0) := to_unsigned(DefaultVolume, 8);
+    signal audio_l_legacy  : std_logic_vector(15 downto 0);
+    signal audio_r_legacy  : std_logic_vector(15 downto 0);
+    signal sid_audio       : signed(17 downto 0);
+    signal sid_strobe      : std_logic;
+    signal psg_audio       : signed(17 downto 0);
+    signal psg_strobe      : std_logic;
     signal m5k_filter_en   : std_logic := '0';
+    signal m5k_spdif       : std_logic;
+    signal m5k_audio_l     : signed(17 downto 0);
+    signal m5k_audio_r     : signed(17 downto 0);
+    signal m5k_strobe      : std_logic;
+    signal mixer_strobe    : std_logic;
+    signal toggle          : std_logic := '0';
 
     signal config_counter  : std_logic_vector(21 downto 0);
     signal config_last     : std_logic;
+    signal config          : std_logic_vector(9 downto 0);
 
     signal powerup_reset_n : std_logic := '0';
     signal hard_reset_n    : std_logic;
@@ -308,6 +334,7 @@ architecture rtl of bbc_micro_tang20k is
     signal i_VGA_R         : std_logic_vector(3 downto 0);
     signal i_VGA_G         : std_logic_vector(3 downto 0);
     signal i_VGA_B         : std_logic_vector(3 downto 0);
+
 
     -- HDMI
     signal hdmi_aspect     : std_logic_vector(1 downto 0);
@@ -361,8 +388,6 @@ begin
             IncludeMusic5000       => IncludeMusic5000,
             IncludeMusic5000Filter => IncludeMusic5000Filter,
             IncludeMusic5000SPDIF  => IncludeMusic5000SPDIF,
-            IncludeMixerResampler  => IncludeMixerResampler,
-            IncludeMixerSPDIF      => IncludeMixerSPDIF,
             IncludeICEDebugger     => IncludeICEDebugger,
             IncludeCoPro6502       => IncludeCoPro6502,
             IncludeCoProSPI        => false,
@@ -391,10 +416,20 @@ begin
             video_blue      => i_VGA_B,
             video_hsync     => vga_hs,
             video_vsync     => vga_vs,
-            audio_l         => audio_l,
-            audio_r         => audio_r,
+            audio_l         => audio_l_legacy,
+            audio_r         => audio_r_legacy,
+            hdmi_audio_ext  => '1',
+            hdmi_audio_l    => audio_l, -- feed audio back into HDMI
+            hdmi_audio_r    => audio_r,
+            psg_audio       => psg_audio,
+            psg_strobe      => psg_strobe,
+            sid_audio       => sid_audio,
+            sid_strobe      => sid_strobe,
             m5k_filter_en   => m5k_filter_en,
-            m5k_spdif       => audio_spdif,
+            m5k_audio_l     => m5k_audio_l,
+            m5k_audio_r     => m5k_audio_r,
+            m5k_strobe      => m5k_strobe,
+            m5k_spdif       => m5k_spdif,
             ext_nOE         => ext_nOE,
             ext_nWE         => ext_nWE,
             ext_nWE_long    => ext_nWE_long,
@@ -419,6 +454,7 @@ begin
             ext_keyb_rst_n  => '1',
             ext_keyb_ca2    => '0',
             ext_keyb_pa7    => '0',
+            config          => config,
             vid_mode        => vid_mode,
             joystick1       => (others => '1'),
             joystick2       => (others => '1'),
@@ -619,6 +655,7 @@ begin
                 m5k_filter_en <= '1';
                 hdmi_audio_en <= '1';
                 config_counter <= (others => '0');
+                volume <= to_unsigned(DefaultVolume, volume'length);
             elsif btn2 = '1' then
                 config_counter <= (others => '1');
             elsif config_counter(config_counter'high) = '1' then
@@ -634,8 +671,121 @@ begin
                 end if;
             end if;
             config_last <= config_counter(config_counter'high);
+            if config(1) = '1' and volume > MinVolume then
+                volume <= volume - 1;
+            end if;
+            if config(2) = '1' and volume < MaxVolume then
+                volume <= volume + 1;
+            end if;
         end if;
     end process;
+
+    --------------------------------------------------------
+    -- Audio Mixer
+    --------------------------------------------------------
+
+    gen_mixer_resampler : if IncludeMixerResampler generate
+        signal channel_in      : t_sample_array;
+        signal channel_clken   : std_logic_vector(NUM_CHANNELS - 1 downto 0);
+        signal channel_load    : std_logic_vector(NUM_CHANNELS - 1 downto 0);
+        signal mixer_l         : signed(19 downto 0);
+        signal mixer_r         : signed(19 downto 0);
+        signal spdif_in        : std_logic_vector(19 downto 0);
+        signal spdif_load      : std_logic;
+        signal channelA        : std_logic;
+        signal div64           : unsigned(5 downto 0) := (others => '0');
+--        signal mhz6_clken      : std_logic;
+    begin
+
+        -- Order: 3, 2, 1, 0
+        channel_clken <= "1111";
+        channel_load  <=  m5k_strobe & m5k_strobe & psg_strobe & sid_strobe;
+
+        -- Order: 0, 1, 2, 3
+        channel_in    <= ( sid_audio, psg_audio, m5k_audio_l, m5k_audio_r );
+
+        sample_rate_converter_inst : entity work.sample_rate_converter
+            generic map (
+                OUTPUT_RATE       => 1000,           -- 48KHz
+                OUTPUT_WIDTH      => 20,             -- 20 bits
+                FILTER_NTAPS      => 3840,
+                FILTER_L          => (6, 24, 128, 128),
+                FILTER_M          => 125,
+                CHANNEL_TYPE      => (mono, mono, left_channel, right_channel),
+                BUFFER_A_WIDTH    => 10,             -- 1K Words
+                COEFF_A_WIDTH     => 11,             -- 2K Words
+                ACCUMULATOR_WIDTH => 54,
+                BUFFER_SIZE       => (704, 192, 64, 64)
+                )
+            port map (
+                clk               => clock_48,
+                reset_n           => powerup_reset_n,
+                volume            => volume,
+                channel_clken     => channel_clken,
+                channel_load      => channel_load,
+                channel_in        => channel_in,
+                mixer_load        => mixer_strobe,
+                mixer_l           => mixer_l,
+                mixer_r           => mixer_r
+                );
+        audio_l <= std_logic_vector(mixer_l(19 downto 4));
+        audio_r <= std_logic_vector(mixer_r(19 downto 4));
+
+        -- process(clock_48)
+        -- begin
+        --     if rising_edge(clock_48) then
+        --         div8 <= div8 + 1;
+        --         if div8 = 0 then
+        --             mhz6_clken <= '1';
+        --         else
+        --             mhz6_clken <= '0';
+        --         end if;
+        --         -- Sync mixer strobe to local mhz6_clken
+        --         if mixer_strobe = '1' then
+        --             spdif_load <= '1';
+        --         elsif mhz6_clken = '1' then
+        --             spdif_load <= '0';
+        --         end if;
+        --     end if;
+        -- end process;
+
+        spdif_in <= std_logic_vector(mixer_l when channelA = '1' else mixer_r);
+
+        process(spdif_clk)
+        begin
+            if rising_edge(spdif_clk) then
+                toggle <= not toggle;
+                div64 <= div64 + 1;
+                if div64 = 0 then
+                    spdif_load <= '1';
+                else
+                    spdif_load <= '0';
+                end if;
+            end if;
+        end process;
+
+        spdif_serialize: entity work.spdif_serializer
+            port map (
+                clk          => spdif_clk,
+                clken        => '1',
+                auxAudioBits => (others => '0'),
+                sample       => spdif_in,
+                load         => spdif_load,
+                channelA     => channelA,
+                spdifOut     => audio_spdif
+                );
+
+    end generate;
+
+    gen_no_resampler: if not IncludeMixerResampler generate
+        audio_spdif <= m5k_spdif;
+        audio_l <= audio_l_legacy;
+        audio_r <= audio_r_legacy;
+    end generate;
+
+    --------------------------------------------------------
+    -- SPDIF
+    --------------------------------------------------------
 
     --------------------------------------------------------
     -- Audio DACs
@@ -809,7 +959,7 @@ begin
         i2s : entity work.i2s_simple
             generic map (
                 CLOCKSPEED => 48000000,
-                SAMPLERATE => 46875      -- Sample Rate of Music 5000
+                SAMPLERATE => 48000      -- Output sample rate of new audio resampler
                 )
             port map (
                 clock      => clock_48,
@@ -947,6 +1097,7 @@ begin
                        ws2812_r  when ext_1mhz_addr = x"51" else
                        ws2812_g  when ext_1mhz_addr = x"52" else
                        ws2812_b  when ext_1mhz_addr = x"53" else
+       std_logic_vector(volume)  when ext_1mhz_addr = x"54" else
                        x"FF";
 
     end generate;
@@ -970,5 +1121,7 @@ begin
     -- gpio <= audiol & audior & trace_rstn & trace_phi2 & trace_sync & trace_r_nw & trace_data;
 
     -- gpio <= audiol & audior & trace_rstn & trace_phi2 & trace_sync & trace_r_nw & not clock_48 & pll1_lock & not clock_27 & pll2_lock & hsync_ref & clkdiv_reset_n & "00";
+
+    gpio <= psg_strobe & mixer_strobe & toggle & "0";
 
 end architecture;
