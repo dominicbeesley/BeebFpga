@@ -67,13 +67,13 @@ IO_PORT "flash_so" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 // 1 bit video 
 
 IO_LOC "vid_r_o" 27;
-IO_PORT "vid_r_o" IO_TYPE=LVCMOS33;
+IO_PORT "vid_r_o" IO_TYPE=LVCMOS33 DRIVE=24;
 
 IO_LOC "vid_g_o" 28;
-IO_PORT "vid_g_o" IO_TYPE=LVCMOS33;
+IO_PORT "vid_g_o" IO_TYPE=LVCMOS33 DRIVE=24;
 
 IO_LOC "vid_b_o" 25;
-IO_PORT "vid_b_o" IO_TYPE=LVCMOS33;
+IO_PORT "vid_b_o" IO_TYPE=LVCMOS33 DRIVE=24;
 
 IO_LOC "vid_cs_o" 26;
-IO_PORT "vid_cs_o" IO_TYPE=LVCMOS33;
+IO_PORT "vid_cs_o" IO_TYPE=LVCMOS33 DRIVE=24;

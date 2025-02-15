@@ -593,7 +593,7 @@ begin
     generic map (
         G_SAMPLE_SIZE       => 4,
         G_SYNC_DEPTH        => 1,
-        G_PWM               => TRUE
+        G_PWM               => FALSE
     )
     port map (
         rst_i               => not hard_reset_n,
@@ -608,7 +608,7 @@ begin
     generic map (
         G_SAMPLE_SIZE       => 4,
         G_SYNC_DEPTH        => 1,
-        G_PWM               => TRUE
+        G_PWM               => FALSE
     )
     port map (
         rst_i               => not hard_reset_n,
@@ -623,7 +623,7 @@ begin
     generic map (
         G_SAMPLE_SIZE       => 4,
         G_SYNC_DEPTH        => 1,
-        G_PWM               => TRUE
+        G_PWM               => FALSE
     )
     port map (
         rst_i               => not hard_reset_n,
