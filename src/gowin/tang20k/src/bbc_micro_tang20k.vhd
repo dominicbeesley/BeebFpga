@@ -67,14 +67,14 @@ entity bbc_micro_tang20k is
         IncludeTrace           : boolean := true;
         IncludeHDMI            : boolean := true;
         IncludeBootStrap       : boolean := true;
-        IncludeMonitor         : boolean := true;
+        IncludeMonitor         : boolean := false; -- So we see the normal status LEDs
         IncludeCoPro6502       : boolean := true;
         IncludeSoftLEDs        : boolean := true;
         IncludeI2SAudio        : boolean := true;
 
         MinVolume              : integer := 0;
         DefaultVolume          : integer := 63;
-        MaxVolume              : integer := 127; -- TODO this can go up to 255 once everything is working
+        MaxVolume              : integer := 255;
 
         PRJ_ROOT               : string  := "../../../..";
         MOS_NAME               : string  := "/roms/bbcb/os12_basic.bit";
@@ -304,6 +304,7 @@ architecture rtl of bbc_micro_tang20k is
     signal m5k_audio_r     : signed(17 downto 0);
     signal m5k_strobe      : std_logic;
     signal mixer_strobe    : std_logic;
+    signal mixer_spdif     : std_logic;
 
     ---test output toggled by the mixer_strobe (system clock domain)
     -- for comparison with spdif_load
@@ -311,6 +312,9 @@ architecture rtl of bbc_micro_tang20k is
 
     -- output used to load sample into SPDIF (spdif clock domain)
     signal spdif_load      : std_logic;
+
+    -- config signal to select SPDIF from mixer (0) or music 5000 (1)
+    signal m5k_spdif_en    : std_logic := '0';
 
     signal config_counter  : std_logic_vector(21 downto 0);
     signal config_last     : std_logic;
@@ -344,7 +348,10 @@ architecture rtl of bbc_micro_tang20k is
 
     -- HDMI
     signal hdmi_aspect     : std_logic_vector(1 downto 0);
-    signal hdmi_audio_en   : std_logic;
+    signal hdmi_audio_en   : std_logic := '1';
+    signal hdmi_audio_src  : std_logic := '1'; -- Sample Rate Convert HDMI Audio
+    signal hdmi_audio_l    : std_logic_vector(15 downto 0);
+    signal hdmi_audio_r    : std_logic_vector(15 downto 0);
     signal vid_debug       : std_logic;
     signal tmds_r          : std_logic_vector(9 downto 0);
     signal tmds_g          : std_logic_vector(9 downto 0);
@@ -425,8 +432,8 @@ begin
             audio_l         => audio_l_legacy,
             audio_r         => audio_r_legacy,
             hdmi_audio_ext  => '1',
-            hdmi_audio_l    => audio_l, -- feed audio back into HDMI
-            hdmi_audio_r    => audio_r,
+            hdmi_audio_l    => hdmi_audio_l,
+            hdmi_audio_r    => hdmi_audio_r,
             psg_audio       => psg_audio,
             psg_strobe      => psg_strobe,
             sid_audio       => sid_audio,
@@ -647,41 +654,58 @@ begin
     --------------------------------------------------------
     -- Button 2: HDMI / DVI mode toggle
     --
-    -- If the Music5000 filter is included then cycle through:
-    --     HDMI Filter On
-    --     HDMI Filter Off
-    --      DVI Filter On
-    --      DV  Filter Off
+    -- The audio options are changed using the Config keys:
+    --     Ctrl-Alt F1 = Volume down (clamped at 0)
+    --     Ctrl-Alt F2 = Volume up
+    --     Ctrl-Alt F3 = Toggle S/PDIF source (Mixer/M5K)
+    --     Ctrl-Alt F4 = Toggle M5K Filter (On/Off)
+    --
+    -- Defaults are currently:
+    --     Volume: 63
+    --     S/PDIF output from Mixer
+    --     M5K filter enabled
+    --
+    -- Changes to these settings persist when BTN1/BTN2 are
+    -- pressed. Is this the right behaviour?
+    --
+    -- Current volume can be read/written at address &FC54.
+    --
+    -- TODO: Add config option for MAX98357 Audio On/Off. Need to
+    -- check the datasheet for correct order to sequence stuff.
+    --
     --------------------------------------------------------
 
     config_gen : process(clock_48)
     begin
         if rising_edge(clock_48) then
             if powerup_reset_n = '0' then
-                m5k_filter_en <= '1';
-                hdmi_audio_en <= '1';
                 config_counter <= (others => '0');
-                volume <= to_unsigned(DefaultVolume, volume'length);
             elsif btn2 = '1' then
                 config_counter <= (others => '1');
             elsif config_counter(config_counter'high) = '1' then
                 config_counter <= config_counter - 1;
             elsif config_last = '1' then
-                if IncludeMusic5000Filter then
-                    m5k_filter_en <= not m5k_filter_en;
-                    if m5k_filter_en = '0' then
-                        hdmi_audio_en <= not hdmi_audio_en;
-                    end if;
-                else
-                    hdmi_audio_en <= not hdmi_audio_en;
-                end if;
+                -- For now, keep HDMI/DVI mode on BTN2
+                hdmi_audio_en <= not hdmi_audio_en;
             end if;
             config_last <= config_counter(config_counter'high);
-            if config(1) = '1' and volume > MinVolume then
-                volume <= volume - 1;
+            -- If SoftLEDs are included, these move to the 1MHz bus section
+            if not IncludeSoftLEDs then
+                if config(1) = '1' and volume > MinVolume then
+                    volume <= volume - 1;
+                end if;
+                if config(2) = '1' and volume < MaxVolume then
+                    volume <= volume + 1;
+                end if;
             end if;
-            if config(2) = '1' and volume < MaxVolume then
-                volume <= volume + 1;
+            if config(3) = '1' then
+                m5k_spdif_en <= not m5k_spdif_en;
+            end if;
+            if config(4) = '1' then
+                m5k_filter_en <= not m5k_filter_en;
+            end if;
+            if config(5) = '1' then
+                hdmi_audio_src <= not hdmi_audio_src;
             end if;
         end if;
     end process;
@@ -733,8 +757,6 @@ begin
                 mixer_l           => mixer_l,
                 mixer_r           => mixer_r
                 );
-        audio_l <= std_logic_vector(mixer_l(19 downto 4));
-        audio_r <= std_logic_vector(mixer_r(19 downto 4));
 
         -- process(clock_48)
         -- begin
@@ -776,15 +798,26 @@ begin
                 sample       => spdif_in,
                 load         => spdif_load,
                 channelA     => channelA,
-                spdifOut     => audio_spdif
+                spdifOut     => mixer_spdif
                 );
+
+
+        audio_spdif  <= m5k_spdif when m5k_spdif_en = '1' else mixer_spdif;
+        audio_l      <= std_logic_vector(mixer_l(19 downto 4));
+        audio_r      <= std_logic_vector(mixer_r(19 downto 4));
+        hdmi_audio_l <= audio_l when hdmi_audio_src else audio_l_legacy;
+        hdmi_audio_r <= audio_r when hdmi_audio_src else audio_r_legacy;
 
     end generate;
 
     gen_no_resampler: if not IncludeMixerResampler generate
-        audio_spdif <= m5k_spdif;
-        audio_l <= audio_l_legacy;
-        audio_r <= audio_r_legacy;
+
+        audio_spdif  <= m5k_spdif;
+        audio_l      <= audio_l_legacy;
+        audio_r      <= audio_r_legacy;
+        hdmi_audio_l <= audio_r_legacy;
+        hdmi_audio_r <= audio_r_legacy;
+
     end generate;
 
     --------------------------------------------------------
@@ -1068,7 +1101,7 @@ begin
         led <= soft_leds(5 downto 0) xor "111111" when soft_leds(7 downto 6) = "10" else
                test(5 downto 0)      xor "111111" when soft_leds(7 downto 6) = "11" else
                monitor_leds                       when IncludeMonitor               else
-               not caps_led & not shift_led & "111" & hdmi_audio_en;
+               (caps_led & shift_led & "0" & m5k_spdif_en & m5k_filter_en & hdmi_audio_en) xor "111111";
 
         process(clock_48)
         begin
@@ -1089,10 +1122,26 @@ begin
                                 ws2812_g  <= ext_1mhz_di;
                             when x"53" =>
                                 ws2812_b  <= ext_1mhz_di;
+                            when x"54" =>
+                                if ext_1mhz_di > MaxVolume then
+                                    volume <= to_unsigned(MaxVolume, volume'length);
+                                elsif ext_1mhz_di < MinVolume then
+                                    volume <= to_unsigned(MinVolume, volume'length);
+                                else
+                                    volume <= unsigned(ext_1mhz_di);
+                                end if;
                             when others =>
                                 null;
                         end case;
                     end if;
+                end if;
+                -- Although not related to the 1MHz bus, it's necessary
+                -- to implement this here.
+                if config(1) = '1' and volume > MinVolume then
+                    volume <= volume - 1;
+                end if;
+                if config(2) = '1' and volume < MaxVolume then
+                    volume <= volume + 1;
                 end if;
             end if;
         end process;
