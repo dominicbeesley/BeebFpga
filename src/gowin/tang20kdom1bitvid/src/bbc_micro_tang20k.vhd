@@ -86,18 +86,11 @@ entity bbc_micro_tang20k is
         uart_rx         : in    std_logic;
         uart_tx         : out   std_logic;
 
-        -- LCD
-        lcd_r           : out   std_logic_vector(4 downto 0);
-        lcd_g           : out   std_logic_vector(5 downto 0);
-        lcd_b           : out   std_logic_vector(4 downto 0);
-        lcd_hs          : out   std_logic;
-        lcd_vs          : out   std_logic;
-        lcd_de          : out   std_logic;
-        lcd_dclk        : out   std_logic;
-        lcd_bl          : out   std_logic;
-
         -- 1 bit video
-        vid_1_o         : out   std_logic;
+        vid_r_o         : out   std_logic;
+        vid_g_o         : out   std_logic;
+        vid_b_o         : out   std_logic;
+        vid_cs_o        : out   std_logic;
 
         -- Magic ports for SDRAM to be inferred
         O_sdram_clk     : out   std_logic;
@@ -236,10 +229,6 @@ architecture rtl of bbc_micro_tang20k is
     signal i_VGA_CLKEN     : std_logic;
     signal i_VGA_MHZ12     : std_logic;
 
-    signal i_lcd_r         : std_logic_vector(5 downto 0);
-    signal i_lcd_g         : std_logic_vector(5 downto 0);
-    signal i_lcd_b         : std_logic_vector(5 downto 0);
-
     -- CPU tracing
     signal trace_data      :   std_logic_vector(7 downto 0);
     signal trace_r_nw      :   std_logic;
@@ -250,7 +239,17 @@ architecture rtl of bbc_micro_tang20k is
     -- Mem Controller Monior LEDs
     signal monitor_leds    :   std_logic_vector(5 downto 0);
 
-    signal vid_1_r          : signed(3 downto 0);
+    signal vid_r_r          : unsigned(3 downto 0);
+    signal vid_g_r          : unsigned(3 downto 0);
+    signal vid_b_r          : unsigned(3 downto 0);
+
+    signal vid_r_r2         : unsigned(3 downto 0);
+    signal vid_g_r2         : unsigned(3 downto 0);
+    signal vid_b_r2         : unsigned(3 downto 0);
+
+    signal vid_req          : std_logic;
+    signal vid_ack          : std_logic;
+
     signal i_clk_432        : std_logic;
 
 begin
@@ -530,38 +529,6 @@ begin
         );
 
     
-    e_lcd_drv:entity work.rgb_lcd_retimer
-    generic map (
-
-        G_PX_IN_WIDTH => 4,
-        G_PX_OUT_WIDTH => 6
-    )
-    port map(
-        clock_48    => clock_48,
-
-        video_r     => i_VGA_r,
-        video_g     => i_VGA_g,
-        video_b     => i_VGA_b,
-        video_hs    => i_VGA_hs,
-        video_vs    => i_VGA_vs,
-        video_de    => i_VGA_de,
-        video_pclken=> i_VGA_clken,
-
-        lcd_hs      => lcd_hs,
-        lcd_vs      => lcd_vs,
-        lcd_de      => lcd_de,
-        lcd_dclk    => lcd_dclk,
-        lcd_bl      => lcd_bl,
-
-        lcd_r       => i_lcd_r,
-        lcd_g       => i_lcd_g,
-        lcd_b       => i_lcd_b
-    );
-
-    lcd_r <= i_lcd_r(5 downto 1);
-    lcd_g <= i_lcd_g(5 downto 0);
-    lcd_b <= i_lcd_b(5 downto 1);
-
 
     --------------------------------------------------------
     -- Output Assignments
@@ -586,31 +553,85 @@ begin
     );
 
 
-    p_v1:process(i_clk_432)
+    vid_cs_o <= not (i_VGA_hs xor i_VGA_vs); 
+
+    p_v1:process(clock_48)
     begin
-        if rising_edge(i_clk_432) then
-            if (i_VGA_hs xor i_VGA_vs) = '1' then
-                vid_1_r <= to_signed(-4, 4);
-            else
-                vid_1_r <= signed("0" & i_VGA_R(3 downto 1));
+        if rising_edge(clock_48) then
+            if i_VGA_CLKEN = '1' then
+                vid_r_r <= unsigned(i_VGA_R);
+                vid_g_r <= unsigned(i_VGA_G);
+                vid_b_r <= unsigned(i_VGA_B);
+                if vid_req = '1' then
+                    vid_req <= '0';
+                else
+                    vid_req <= '1';
+                end if;
             end if;
         end if;
     end process;
 
+    p_v2:process(i_clk_432)
+    variable v_vr2 : std_logic;
+    begin
+        if rising_edge(i_clk_432) then
+            if v_vr2 /= vid_ack then
+                vid_r_r2 <= vid_r_r;
+                vid_g_r2 <= vid_g_r;
+                vid_b_r2 <= vid_b_r;
+                if vid_ack = '1' then
+                    vid_ack <= '0';
+                else
+                    vid_ack <= '1';
+                end if;
+            end if;
+            v_vr2 := vid_req;
+        end if;
+    end process;
 
-    e_vid1:entity work.dac_1bit
+    e_vidr:entity work.dac_1bit
     generic map (
         G_SAMPLE_SIZE       => 4,
         G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
+        G_PWM               => TRUE
     )
     port map (
         rst_i               => not hard_reset_n,
         clk_dac             => i_clk_432,
 
-        sample              => signed(vid_1_r),
+        sample              => vid_r_r2,
         
-        bitstream           => vid_1_o
+        bitstream           => vid_r_o
+    );
+
+    e_vidg:entity work.dac_1bit
+    generic map (
+        G_SAMPLE_SIZE       => 4,
+        G_SYNC_DEPTH        => 1,
+        G_PWM               => TRUE
+    )
+    port map (
+        rst_i               => not hard_reset_n,
+        clk_dac             => i_clk_432,
+
+        sample              => vid_g_r2,
+        
+        bitstream           => vid_g_o
+    );
+
+    e_vidb:entity work.dac_1bit
+    generic map (
+        G_SAMPLE_SIZE       => 4,
+        G_SYNC_DEPTH        => 1,
+        G_PWM               => TRUE
+    )
+    port map (
+        rst_i               => not hard_reset_n,
+        clk_dac             => i_clk_432,
+
+        sample              => vid_b_r2,
+        
+        bitstream           => vid_b_o
     );
 
 

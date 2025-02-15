@@ -54,14 +54,14 @@ entity dac_1bit is
 		rst_i					: in  	std_logic;
 		clk_dac				: in		std_logic;
 
-		sample				: in		signed(G_SAMPLE_SIZE-1 downto 0);				-- sample in, will be registered in dac domain
+		sample				: in		unsigned(G_SAMPLE_SIZE-1 downto 0);				-- sample in, will be registered in dac domain
 		
 		bitstream			: out		std_logic
 	);
 end dac_1bit;
 
 architecture dac_1bit_arc of dac_1bit is
-	type	sample_arr	is array(natural range <>) of signed(G_SAMPLE_SIZE-1 downto 0);
+	type	sample_arr	is array(natural range <>) of unsigned(G_SAMPLE_SIZE-1 downto 0);
 
 	signal r_arr_clk_dac : sample_arr(G_SYNC_DEPTH downto 0);
 begin
@@ -82,7 +82,7 @@ begin
 
 GG_PWM:IF G_PWM GENERATE
 	p_pwm: process(clk_dac, rst_i)
-	variable ctr:signed(G_SAMPLE_SIZE-1 downto 0);
+	variable ctr:unsigned(G_SAMPLE_SIZE-1 downto 0);
 	begin
 		if rst_i = '1' then
 			ctr := ('1', others => '0');			-- max neg value
@@ -104,10 +104,10 @@ GG_SIG:IF not G_PWM GENERATE
    variable sum:unsigned(G_SAMPLE_SIZE downto 0);
    begin		
 		if rising_edge(clk_dac) then
-		   samu := unsigned(to_signed(2**(G_SAMPLE_SIZE-1), G_SAMPLE_SIZE+1) + r_arr_clk_dac(0));
+		   samu := unsigned('0' &  r_arr_clk_dac(0));
 			bitstream <= sum(G_SAMPLE_SIZE);
 			-- signed to unsigned expand to 9 bits
-         sum := unsigned("0" & sum(G_SAMPLE_SIZE-1 downto 0)) + unsigned("0" & samu(G_SAMPLE_SIZE-1 downto 0));
+         sum := unsigned('0' & sum(G_SAMPLE_SIZE-1 downto 0)) + samu(G_SAMPLE_SIZE-1 downto 0);
 		end if; 
    end process;
 
