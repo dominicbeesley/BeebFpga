@@ -45,9 +45,11 @@ entity sample_rate_converter is
     generic (
         OUTPUT_RATE       : integer;
         OUTPUT_WIDTH      : integer;
+        OUTPUT_SHIFT      : integer := 12;
         FILTER_NTAPS      : integer;
         FILTER_L          : t_int_array;
         FILTER_M          : integer;
+        FILTER_SHIFT      : integer := 16;
         CHANNEL_TYPE      : t_channel_type_array;
         BUFFER_A_WIDTH    : integer;
         COEFF_A_WIDTH     : integer;
@@ -258,6 +260,10 @@ architecture rtl of sample_rate_converter is
     -- The mixer sum, calculated across the N channels
     signal mixer_sum_l     : signed(SAMPLE_WIDTH * 2 - 1 downto 0) := to_signed(0, SAMPLE_WIDTH * 2);
     signal mixer_sum_r     : signed(SAMPLE_WIDTH * 2 - 1 downto 0) := to_signed(0, SAMPLE_WIDTH * 2);
+
+    -- Constants for output clipping
+    constant MIN_OUTPUT    : integer := -(2 ** (OUTPUT_WIDTH - 1));
+    constant MAX_OUTPUT    : integer := 2 ** (OUTPUT_WIDTH - 1) - 1;
 
     -- For debugging (in a simulation)
     signal debug_state   : std_logic_vector(3 downto 0);
@@ -636,44 +642,154 @@ begin
     ----------------------------------------------------------------------------------
     -- DSP pipeline stage 3d - update the outputs
     ----------------------------------------------------------------------------------
-
-    -- Note: mixer_sum_l is 2 * SAMPLE_WIDTH bits wide (=36)
+    -- Pondering gain....
     --
-    -- It contains a signed value that is the sum of all N (=4) channels
+    -- Input samples and filter coefficents are 18 bit signed numbers
     --
-    -- And each channel is 18-bit signed value that has been scaled by:
-    --     fixed filter gain (=384) * volume (0..255)
+    -- The DSP pipeline does:
+    --   [1]       filter = sum(input sample x filter coeffient)
+    --   [2]  channel_mag = filter  >> FILTER_SHIFT (=16)
+    --   [3]      channel = channel_mag * L * volume
+    --   [4]   mixer_sum += channel * sign
     --
-    -- This now needs mapping to a final value that us OUTPUT_WIDTH (=20) bits wide
+    -- The filter coefficients were calculated to provide an overall
+    -- filter gain of 256. There is also a fixed scaling factor of
+    -- 2^16 so the coefficients occupy as much of the 18-bits of
+    -- precision as possible.
     --
-    -- We currently do that by taking bits 35..16
+    -- The interpolation process reduces the gain by a factor of L, so
+    -- the overall gain at the end of step [1] is:
     --
-    -- If you use the left most bits when mapping mixer_sum to the
-    -- final output then a input channel of 50% (+65536) with a FG of
-    -- 384 and vol of 63 (25%) gives a final output of +3024 which is about 0.5%.
+    --    Music 5000: L=128 => Gain of   2.00 * 2^16
+    --           PSG: L= 24 => Gain of  10.67 * 2^16
+    --           SID: L=  6 => Gain of  42.67 * 2^16
+    --    Note: the gain come from 256/L
     --
-    -- Extrapolating, an 100% input (+131072) FG of 256 and a vol of 256 would give
-    -- +16384 on a 20 bit signed output which is 3.125 (1/32).
+    -- Step [2] divides by 2^16, so the overall:
     --
-    -- This suggest a final gain of 32 (a shift of 5 bits) is about right
+    --    Music 5000: L=128 => Gain of  2.00
+    --           PSG: L= 24 => Gain of 10.35
+    --           SID: L=  6 => Gain of 42.67
     --
-    -- TODO: make the FILTER_GAIN (=384) a generic and calculate the bit slice
-    -- TODO: recalculate the filter with a FILTER_GAIN of 256
-    -- TODO: clip values that are too large
-    -- TODO: somehow calculate the shift value automatically
+    -- Step [3] multiplies by L * volume (0..255), so overall:
+    --
+    -- All sources now have a gain of 256 * volume
+    --
+    --   [1] filter = sum(input sample x filter coeffient)
+    --
+    -- For our current sources and filter, the worst case number of
+    -- multiplies is NTAPS (=3840) / Lmin = 3840 / 6 = 640. This is
+    -- for the SID channel.
+    --
+    -- The inputs are 18 bit signed (1+17) so a minimum precision of
+    -- 1 + 17 + 17 + ceil(log2(640)) = 45 bits.
+    --
+    -- In practice, this can be left to the DSP accumulator, which is
+    -- 54 bits wide in Gowin and 48 bits wide in Xilinx/Altera. This
+    -- is set by the ACCUMULATOR_WIDTH generic.
+    --
+    --   [2] channel_mag = filter >> 16
+    --
+    -- This needs 45 - 16 = 29 bits.
+    --
+    --   [3] channel = channel_mag * L * volume
+    --
+    -- This step is implemented as two partial multiplies
+    --
+    --    scale_factor = L * volume (precalculated)     [ 16 bits  ]
+    -- channel_mag_lsb = channel_magnitude (16. .0)     [ 17 bits  ]
+    -- channel_mag_msb = channel_magnitude (32..17)     [ 17 bits  ]
+    --        product1 = channel_mag_lsb * scale_factor [ 33 bits  ]
+    --        product2 = channel_mag_msb * scale_factor [ 33 bits? ]
+    --         channel = product1 + product2 << 17      [ 51 bits? ]
+    --
+    -- At first inspection, it appears the result needs 51 bits!  But
+    -- it's actually much less than this. One reason is L terms in
+    -- scale_factor and channel_magnitude cancel out. This saves 7
+    -- bits. The other is filter coefficients are calculated so the
+    -- gain is fixed.
+    --
+    -- The channel result size is best thought of as needing:
+    --    sample width: 18 bits (1+17)
+    --     filter gain:  8 bits (fixed at 256)
+    --          volume:  8 bits
+    --                  --
+    --                  34 bits
+    --
+    --   [4] mixer_sum += channel * sign
+    --
+    -- This is implemented by adding the two partial products.
+    --
+    --     mixer_sum += sign * product1
+    --     mixer_sum += sign * product2 << 17
+    --
+    -- So using 2 * SAMPLE_WIDTH for the channel sum will suffice.
+    --
+    -- The final issue is mapping the mixer_sum (2 * SAMPLE_WIDTH=36)
+    -- to the output port (OUTPUT_WIDTH=20)
+    --
+    -- The best way to think of the mixer sum is as a fixed point
+    -- value with 33 digits to the right of the point:
+    --     . <17 bits> <8 bits> <8 bits>
+    --
+    -- <17 bits> comes from the magnitude of the input values
+    --  <8 bits> comes from the fixed filter gain of 256
+    --  <8 bits> comes from the volume gain (assuming max volume of 255)
+    --
+    -- This now needs mapping to a final value that us OUTPUT_WIDTH
+    -- (=20) bits wide.
+    --
+    -- This raises the question of overflow.
+    --
+    -- If we select the 20 bits to the right of the decimal point
+    -- (bits 32..13) then with one source playing, even at at volume
+    -- 255, it will never clip:
+    --
+    --                          mixer_sum
+    --                     <bit 33> . <bit 32>            <bit 0>
+    --                           |     |                       |
+    --   <sign extesion + overflow> . <17 bits> <8 bits> <8 bits>
+    --                       <sign> . <19 bits>         <14 bits>
+    --
+    -- If three sources are playing at the same time, then clipping is
+    -- possible, bit if that happens the user can turn the volume
+    -- down. So this seams reasonable.
+    --
+    -- But, the Music 5000 tracks can be well below the 0dB level,
+    -- if only a few of the 16 possible channels are active.
+    --
+    -- It's probably better to arrange things so a volume of, say 64,
+    -- would give unity gain. This then gives scope for the user to
+    -- boost Music 5000 tracks by 12dB if necessary.
+    --
+    -- So instead of selecting bits 33..14, we select propose
+    -- selecting bits 31..12 and range check to avoid clipping.
+    --
+    -- The RHS of this range is configured as a generic (OUTPUT_SHIFT).
 
     process(clk)
+        variable tmp : signed(2 * SAMPLE_WIDTH - OUTPUT_SHIFT - 1 downto 0);
     begin
         if rising_edge(clk) then
             if clk_en = '1' then
                 -- This actually happens much later, when the rate counter expires
                 if pipe_state(3) = st_output then
-                    -- Use the left most bits when mapping mixer_sum
-                    -- mixer_l     <= mixer_sum_l(mixer_sum_l'left downto mixer_sum_l'left - OUTPUT_WIDTH + 1);
-                    -- mixer_r     <= mixer_sum_r(mixer_sum_r'left downto mixer_sum_r'left - OUTPUT_WIDTH + 1);
-                    mixer_l     <= mixer_sum_l(mixer_sum_l'left - 5  downto mixer_sum_l'left - 5 - OUTPUT_WIDTH + 1);
-                    mixer_r     <= mixer_sum_r(mixer_sum_l'left - 5  downto mixer_sum_l'left - 5 - OUTPUT_WIDTH + 1);
                     mixer_load  <= '1';
+                    -- Select the bits to output using OUTPUT_SHIFT as per above long discussion
+                    tmp := mixer_sum_l(2 * SAMPLE_WIDTH - 1 downto OUTPUT_SHIFT);
+                    if tmp < MIN_OUTPUT then
+                        tmp := to_signed(MIN_OUTPUT, tmp'length);
+                    elsif tmp > MAX_OUTPUT then
+                        tmp := to_signed(MAX_OUTPUT, tmp'length);
+                    end if;
+                    mixer_l <= tmp(OUTPUT_WIDTH - 1 downto 0);
+                    tmp := mixer_sum_r(2 * SAMPLE_WIDTH - 1 downto OUTPUT_SHIFT);
+                    if tmp < MIN_OUTPUT then
+                        tmp := to_signed(MIN_OUTPUT, tmp'length);
+                    elsif tmp > MAX_OUTPUT then
+                        tmp := to_signed(MAX_OUTPUT, tmp'length);
+                    end if;
+                    mixer_r <= tmp(OUTPUT_WIDTH - 1 downto 0);
                 else
                     mixer_load  <= '0';
                 end if;
@@ -692,21 +808,27 @@ begin
 
     process(clk)
         variable tmp : signed(SAMPLE_WIDTH * 2 - 1 downto 0);
+        function fn_min(a : in integer; b : in integer) return integer is
+        begin
+            if a < b then
+                return a;
+            else
+                return b;
+            end if;
+        end function;
     begin
         if rising_edge(clk) then
             if clk_en = '1' then
                 if pipe_state(4) = st_save then
                     channel_sign <= '0';
-                    tmp := accumulator(ACCUMULATOR_WIDTH - 1 downto SAMPLE_WIDTH);
+                    -- Truncate to account for 2^15 scaling of filter coeffients for representation as integers
+                    tmp := accumulator(fn_min(ACCUMULATOR_WIDTH - 1, SAMPLE_WIDTH * 2 + FILTER_SHIFT - 1) downto FILTER_SHIFT);
                     if tmp < 0 then
                         channel_sign <= '1';
                         tmp := -tmp;
                     else
                         channel_sign <= '0';
                     end if;
-                    -- TODO: double check we extract the right bits
-                    -- here, and later combine with a shift of
-                    -- SAMPLE_WIDTH - 1.
                     channel_mag_lsb <= signed("0" & std_logic_vector(tmp(SAMPLE_WIDTH     - 2 downto                0)));
                     channel_mag_msb <= signed("0" & std_logic_vector(tmp(SAMPLE_WIDTH * 2 - 3 downto SAMPLE_WIDTH - 1)));
                 end if;
