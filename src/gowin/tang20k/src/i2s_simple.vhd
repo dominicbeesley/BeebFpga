@@ -43,9 +43,6 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
 use ieee.numeric_std.all;
 
-library work;
-use work.common.all;
-
 entity i2s_simple is
     generic (
         CLOCKSPEED : natural;
@@ -71,11 +68,23 @@ end entity;
 
 architecture rtl of i2s_simple is
 
+    -- This gracefully handles passing zero in
+    function f_log2 (x : natural) return natural is
+        variable i : natural;
+    begin
+        i := 0;
+        while (2**i < x) and i < 31 loop
+            i := i + 1;
+        end loop;
+        return i;
+    end function;
+
     -- Use 32-bit mode of the MAX98357A for full 105dB dynamic range
+    -- Width a 6.144MHz clock and 48KHz this works out as zero
     constant MAXCOUNT : natural := CLOCKSPEED / (SAMPLERATE * 64) / 2 - 1;
 
     signal clk_audio     : std_logic := '0';
-    signal aclk_cnt      : std_logic_vector(numbits(MAXCOUNT) downto 0);
+    signal aclk_cnt      : std_logic_vector(f_log2(MAXCOUNT) downto 0);
     signal audio_mixed   : std_logic_vector(16 downto 0);
     signal audio         : std_logic_vector(31 downto 0);
     signal audio_bit_cnt : std_logic_vector(5 downto 0);
