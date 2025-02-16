@@ -298,7 +298,7 @@ architecture rtl of bbc_micro_tang20k is
     signal sid_strobe      : std_logic;
     signal psg_audio       : signed(17 downto 0);
     signal psg_strobe      : std_logic;
-    signal m5k_filter_en   : std_logic := '0';
+    signal m5k_filter_en   : std_logic := '1';
     signal m5k_spdif       : std_logic;
     signal m5k_audio_l     : signed(17 downto 0);
     signal m5k_audio_r     : signed(17 downto 0);
@@ -383,6 +383,9 @@ architecture rtl of bbc_micro_tang20k is
     signal ext_1mhz_addr   : std_logic_vector(7 downto 0);
     signal ext_1mhz_di     : std_logic_vector(7 downto 0);
     signal ext_1mhz_do     : std_logic_vector(7 downto 0);
+
+    -- LEDs
+    signal normal_leds     : std_logic_vector(5 downto 0);
 
     -- Test
     signal test            : std_logic_vector(7 downto 0);
@@ -805,8 +808,8 @@ begin
         audio_spdif  <= m5k_spdif when m5k_spdif_en = '1' else mixer_spdif;
         audio_l      <= std_logic_vector(mixer_l(19 downto 4));
         audio_r      <= std_logic_vector(mixer_r(19 downto 4));
-        hdmi_audio_l <= audio_l when hdmi_audio_src else audio_l_legacy;
-        hdmi_audio_r <= audio_r when hdmi_audio_src else audio_r_legacy;
+        hdmi_audio_l <= audio_l when hdmi_audio_src = '1' else audio_l_legacy;
+        hdmi_audio_r <= audio_r when hdmi_audio_src = '1' else audio_r_legacy;
 
     end generate;
 
@@ -992,14 +995,15 @@ begin
     --------------------------------------------------------
 
     gen_i2s : if IncludeI2SAudio generate
-
+    begin
         i2s : entity work.i2s_simple
             generic map (
-                CLOCKSPEED => 48000000,
+                ATTENUATE  => 2,         -- Attenuate by two bits, otherwise it's way too loud!
+                CLOCKSPEED => 6144000,   -- SPDIF Clock
                 SAMPLERATE => 48000      -- Output sample rate of new audio resampler
                 )
             port map (
-                clock      => clock_48,
+                clock      => spdif_clk,
                 reset_n    => powerup_reset_n,
                 audio_l    => audio_l,
                 audio_r    => audio_r,
@@ -1071,6 +1075,8 @@ begin
     -- 1MHz Bus LEDs
     --------------------------------------------------------
 
+    normal_leds <= (caps_led & shift_led & m5k_spdif_en & m5k_filter_en & hdmi_audio_src & hdmi_audio_en) xor "111111";
+
     GenLEDS: if IncludeSoftLEDs generate
         signal soft_leds       : std_logic_vector(7 downto 0) := (others => '0');
         signal ws2812_r        : std_logic_vector(7 downto 0) := (others => '0');
@@ -1101,7 +1107,7 @@ begin
         led <= soft_leds(5 downto 0) xor "111111" when soft_leds(7 downto 6) = "10" else
                test(5 downto 0)      xor "111111" when soft_leds(7 downto 6) = "11" else
                monitor_leds                       when IncludeMonitor               else
-               (caps_led & shift_led & "0" & m5k_spdif_en & m5k_filter_en & hdmi_audio_en) xor "111111";
+               normal_leds;
 
         process(clock_48)
         begin
@@ -1157,8 +1163,7 @@ begin
 
     NotGenLEDS: if not IncludeSoftLEDs generate
 
-        led <= monitor_leds when IncludeMonitor else
-               not caps_led & not shift_led & "111" & hdmi_audio_en;
+        led <= monitor_leds when IncludeMonitor else normal_leds;
         ws2812_din <= '0';
 
     end generate;
