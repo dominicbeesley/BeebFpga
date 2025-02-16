@@ -718,7 +718,8 @@ begin
     --------------------------------------------------------
 
     gen_mixer_resampler : if IncludeMixerResampler generate
-        signal channel_in      : t_sample_array;
+        constant NUM_CHANNELS  : integer := 4;
+        signal channel_in      : t_sample_array(0 to NUM_CHANNELS - 1);
         signal channel_clken   : std_logic_vector(NUM_CHANNELS - 1 downto 0);
         signal channel_load    : std_logic_vector(NUM_CHANNELS - 1 downto 0);
         signal mixer_l         : signed(19 downto 0);
@@ -738,6 +739,7 @@ begin
 
         sample_rate_converter_inst : entity work.sample_rate_converter
             generic map (
+                NUM_CHANNELS      => NUM_CHANNELS,
                 OUTPUT_RATE       => 1000,           -- 48KHz
                 OUTPUT_WIDTH      => 20,             -- 20 bits
                 FILTER_NTAPS      => 3840,
@@ -756,7 +758,7 @@ begin
                 channel_clken     => channel_clken,
                 channel_load      => channel_load,
                 channel_in        => channel_in,
-                mixer_load        => mixer_strobe,
+                mixer_strobe      => mixer_strobe,
                 mixer_l           => mixer_l,
                 mixer_r           => mixer_r
                 );
