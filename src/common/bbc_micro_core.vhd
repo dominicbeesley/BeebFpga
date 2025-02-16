@@ -1546,7 +1546,7 @@ begin
             );
 
     -- External ports
-    psg_audio  <= signed((17 downto 14 => sound_ao_pcm(13)) & sound_ao_pcm);
+    psg_audio  <= signed(sound_ao_pcm & "0000");
     psg_strobe <= sound_strobe and mhz4_clken;
 
 --------------------------------------------------------
@@ -1598,14 +1598,13 @@ begin
 -- Sound Mixer
 --------------------------------------------------------
 
-    process(sound_ao, sid_ao, music5000_ao_l, music5000_ao_r)
+    process(sound_ao_pcm, sid_ao, music5000_ao_l, music5000_ao_r)
         variable l : std_logic_vector(15 downto 0);
         variable r : std_logic_vector(15 downto 0);
     begin
-        -- SN76489 output is 14-bit unsigned and is 0x00 when no sound is playing
-        -- attenuate by one bit as to try to match level with other sources
-        l := "00" & std_logic_vector(sound_ao);
-        r := "00" & std_logic_vector(sound_ao);
+        -- SN76489 PCM output is 14-bit signed and is 0x00 when no sound is playing
+        l := std_logic_vector(sound_ao_pcm) & "00";
+        r := std_logic_vector(sound_ao_pcm) & "00";
         if IncludeSID then
             -- SID output is 16-bit unsigned
             l := l + (sid_ao(17 downto 2) - x"8000");
