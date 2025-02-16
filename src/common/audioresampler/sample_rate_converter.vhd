@@ -43,6 +43,7 @@ use work.sample_rate_converter_pkg.all;
 
 entity sample_rate_converter is
     generic (
+        NUM_CHANNELS      : integer;
         OUTPUT_RATE       : integer;
         OUTPUT_WIDTH      : integer;
         OUTPUT_SHIFT      : integer := 12;
@@ -67,10 +68,10 @@ entity sample_rate_converter is
         -- Input Channels
         channel_clken     : in  std_logic_vector(NUM_CHANNELS - 1 downto 0) := (others => '1');
         channel_load      : in  std_logic_vector(NUM_CHANNELS - 1 downto 0) := (others => '0');
-        channel_in        : in  t_sample_array;
+        channel_in        : in  t_sample_array(0 to NUM_CHANNELS - 1);
 
         -- Stereo output
-        mixer_load        : out std_logic;
+        mixer_strobe      : out std_logic;
         mixer_l           : out signed(OUTPUT_WIDTH - 1 downto 0);
         mixer_r           : out signed(OUTPUT_WIDTH - 1 downto 0)
         );
@@ -83,7 +84,7 @@ architecture rtl of sample_rate_converter is
     -- ------------------------------------------------------------------------------
 
     function init_m_mod_l(m : in integer; l : in t_int_array) return t_int_array is
-        variable ret : t_int_array;
+        variable ret : t_int_array(0 to NUM_CHANNELS - 1);
     begin
         for i in 0 to NUM_CHANNELS - 1 loop
             ret(i) := m mod l(i);
@@ -92,7 +93,7 @@ architecture rtl of sample_rate_converter is
     end function;
 
     function init_m_div_l(m : in integer; l : in t_int_array) return t_int_array is
-        variable ret : t_int_array;
+        variable ret : t_int_array(0 to NUM_CHANNELS - 1);
     begin
         for i in 0 to NUM_CHANNELS - 1 loop
             ret(i) := m / l(i);
@@ -109,7 +110,7 @@ architecture rtl of sample_rate_converter is
     -- ------------------------------------------------------------------------------
 
     -- A sample register (per channel) to capture input data before it's written to the RAM
-    signal channel_data : t_sample_array;
+    signal channel_data : t_sample_array(0 to NUM_CHANNELS - 1);
 
     -- A register with a bit per channel to indicate data is pending on that channel
     signal channel_dav : std_logic_vector(NUM_CHANNELS - 1 downto 0);
@@ -164,7 +165,7 @@ architecture rtl of sample_rate_converter is
     -- A function to initialize the base address of each buffer from the passed-in sizes
     function init_buffer_base(i_buffer_size : in t_int_array)
         return t_int_array is
-        variable tmp : t_int_array;
+        variable tmp : t_int_array(0 to NUM_CHANNELS - 1);
         variable sum : integer;
     begin
         sum := 0;
@@ -774,7 +775,7 @@ begin
             if clk_en = '1' then
                 -- This actually happens much later, when the rate counter expires
                 if pipe_state(3) = st_output then
-                    mixer_load  <= '1';
+                    mixer_strobe  <= '1';
                     -- Select the bits to output using OUTPUT_SHIFT as per above long discussion
                     tmp := mixer_sum_l(2 * SAMPLE_WIDTH - 1 downto OUTPUT_SHIFT);
                     if tmp < MIN_OUTPUT then
@@ -791,7 +792,7 @@ begin
                     end if;
                     mixer_r <= tmp(OUTPUT_WIDTH - 1 downto 0);
                 else
-                    mixer_load  <= '0';
+                    mixer_strobe  <= '0';
                 end if;
             end if;
         end if;

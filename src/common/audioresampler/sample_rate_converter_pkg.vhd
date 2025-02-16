@@ -39,9 +39,9 @@ use ieee.numeric_std.all;
 
 package sample_rate_converter_pkg is
 
-    constant NUM_CHANNELS      : integer := 4;
-
-    constant SAMPLE_WIDTH      : integer := 18;
+    -- It would be nice if this were a generic
+    -- but VHDL 1993 doesn't allow completely unconstrained arrays
+    constant SAMPLE_WIDTH : integer := 18;
 
     type t_channel_type is (
         left_channel,
@@ -49,13 +49,13 @@ package sample_rate_converter_pkg is
         mono
     );
 
-    type t_channel_type_array is array(natural range 0 to NUM_CHANNELS - 1)
+    type t_channel_type_array is array(natural range <>)
         of t_channel_type;
 
-    type t_sample_array is array(natural range 0 to NUM_CHANNELS - 1)
+    type t_sample_array is array(natural range <>)
         of signed(SAMPLE_WIDTH - 1 downto 0);
 
-    type t_int_array is array(0 to NUM_CHANNELS - 1)
+    type t_int_array is array(natural range <>)
         of integer;
 
 
