@@ -58,12 +58,11 @@ IMAGE=tmp/tang_image_combined_${MMFS}.bin
 rm -f $IMAGE
 
 cat $IMAGE1 >> $IMAGE
-dd if=/dev/zero bs=16384 count=16 >> $IMAGE
+dd if=/dev/zero bs=16384 count=16 status=none >> $IMAGE
 cat $IMAGE2 >> $IMAGE
-dd if=/dev/zero bs=16384 count=3 >> $IMAGE
+dd if=/dev/zero bs=16384 count=3 status=none >> $IMAGE
 cat $IMAGE3 >> $IMAGE
 
-echo $IMAGE
 ls -l $IMAGE
 echo "On a TANG Nano  9K program to external FLASH address 0x000000"
 echo "On a TANG Nano 20K program to external FLASH address 0x500000"
