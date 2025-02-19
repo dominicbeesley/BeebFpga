@@ -44,6 +44,7 @@ use work.sample_rate_converter_pkg.all;
 entity sample_rate_converter is
     generic (
         NUM_CHANNELS      : integer;
+        VOLUME_WIDTH      : integer := 8;
         OUTPUT_RATE       : integer;
         OUTPUT_WIDTH      : integer;
         OUTPUT_SHIFT      : integer := 12;
@@ -63,7 +64,7 @@ entity sample_rate_converter is
         reset_n           : in  std_logic;
 
         -- Master volume
-        volume            : in  unsigned(7 downto 0);
+        volume            : in  unsigned(VOLUME_WIDTH - 1 downto 0);
 
         -- Input Channels
         channel_clken     : in  std_logic_vector(NUM_CHANNELS - 1 downto 0) := (others => '1');
