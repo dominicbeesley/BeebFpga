@@ -72,9 +72,9 @@ entity bbc_micro_tang20k is
         IncludeSoftLEDs        : boolean := true;
         IncludeI2SAudio        : boolean := true;
 
-        MinVolume              : integer := 0;
-        DefaultVolume          : integer := 63;
-        MaxVolume              : integer := 255;
+        MinVolume              : integer := 0;  -- -60dB
+        DefaultVolume          : integer := 10; -- -30dB
+        MaxVolume              : integer := 20; --   0dB
 
         PRJ_ROOT               : string  := "../../../..";
         MOS_NAME               : string  := "/roms/bbcb/os12_basic.bit";
@@ -263,6 +263,33 @@ architecture rtl of bbc_micro_tang20k is
     -- Functions
     --------------------------------------------------------
 
+    function VOLUME_FN(log : in natural) return natural is
+    begin
+        case log is
+            when  1 => return    1;
+            when  2 => return    2;
+            when  3 => return    3;
+            when  4 => return    4;
+            when  5 => return    6;
+            when  6 => return    8;
+            when  7 => return   11;
+            when  8 => return   16;
+            when  9 => return   23;
+            when 10 => return   32;
+            when 11 => return   46;
+            when 12 => return   64;
+            when 13 => return   91;
+            when 14 => return  128;
+            when 15 => return  182;
+            when 16 => return  256;
+            when 17 => return  363;
+            when 18 => return  512;
+            when 19 => return  724;
+            when 20 => return 1023;
+            when others => return 0;
+        end case;
+    end function;
+
     function RESETBITS return natural is
     begin
         if SIM then
@@ -291,7 +318,7 @@ architecture rtl of bbc_micro_tang20k is
     signal audio_r         : std_logic_vector(15 downto 0);
     signal audiol          : std_logic;
     signal audior          : std_logic;
-    signal volume          : unsigned(7 downto 0) := to_unsigned(DefaultVolume, 8);
+    signal volume          : unsigned(4 downto 0) := to_unsigned(DefaultVolume, 5);
     signal audio_l_legacy  : std_logic_vector(15 downto 0);
     signal audio_r_legacy  : std_logic_vector(15 downto 0);
     signal sid_audio       : signed(17 downto 0);
@@ -740,11 +767,14 @@ begin
         sample_rate_converter_inst : entity work.sample_rate_converter
             generic map (
                 NUM_CHANNELS      => NUM_CHANNELS,
+                VOLUME_WIDTH      => 10,
                 OUTPUT_RATE       => 1000,           -- 48KHz
                 OUTPUT_WIDTH      => 20,             -- 20 bits
+                OUTPUT_SHIFT      => 14,
                 FILTER_NTAPS      => 3840,
                 FILTER_L          => (6, 24, 128, 128),
                 FILTER_M          => 125,
+                FILTER_SHIFT      => 16,
                 CHANNEL_TYPE      => (mono, mono, left_channel, right_channel),
                 BUFFER_A_WIDTH    => 10,             -- 1K Words
                 COEFF_A_WIDTH     => 11,             -- 2K Words
@@ -754,7 +784,7 @@ begin
             port map (
                 clk               => clock_48,
                 reset_n           => powerup_reset_n,
-                volume            => volume,
+                volume            => to_unsigned(VOLUME_FN(to_integer(volume)), 10),
                 channel_clken     => channel_clken,
                 channel_load      => channel_load,
                 channel_in        => channel_in,
@@ -1136,7 +1166,7 @@ begin
                                 elsif ext_1mhz_di < MinVolume then
                                     volume <= to_unsigned(MinVolume, volume'length);
                                 else
-                                    volume <= unsigned(ext_1mhz_di);
+                                    volume <= unsigned(ext_1mhz_di(volume'length - 1 downto 0));
                                 end if;
                             when others =>
                                 null;
@@ -1154,11 +1184,11 @@ begin
             end if;
         end process;
 
-        ext_1mhz_do <= soft_leds when ext_1mhz_addr = x"50" else
-                       ws2812_r  when ext_1mhz_addr = x"51" else
-                       ws2812_g  when ext_1mhz_addr = x"52" else
-                       ws2812_b  when ext_1mhz_addr = x"53" else
-       std_logic_vector(volume)  when ext_1mhz_addr = x"54" else
+        ext_1mhz_do <=  soft_leds when ext_1mhz_addr = x"50" else
+                         ws2812_r when ext_1mhz_addr = x"51" else
+                         ws2812_g when ext_1mhz_addr = x"52" else
+                         ws2812_b when ext_1mhz_addr = x"53" else
+ "000" & std_logic_vector(volume) when ext_1mhz_addr = x"54" else
                        x"FF";
 
     end generate;
