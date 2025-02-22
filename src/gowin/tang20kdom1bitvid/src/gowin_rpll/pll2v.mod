@@ -7,7 +7,7 @@
 
 -mod_name pll2v
 -file_name pll2v
--path C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/gowin/tang20kdomlcd/src/gowin_rpll/
+-path C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/gowin/tang20kdom1bitvid/src/gowin_rpll/
 -type PLL
 -rPll true
 -file_type vhdl
@@ -15,9 +15,9 @@
 -dyn_idiv_sel false
 -idiv_sel 1
 -dyn_fbdiv_sel false
--fbdiv_sel 16
+-fbdiv_sel 8
 -dyn_odiv_sel false
--odiv_sel 2
+-odiv_sel 4
 -dyn_da_en false
 -rst_sig false
 -rst_sig_p false

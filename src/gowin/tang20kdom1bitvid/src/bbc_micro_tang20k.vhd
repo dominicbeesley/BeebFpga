@@ -252,7 +252,7 @@ architecture rtl of bbc_micro_tang20k is
     signal vid_req          : std_logic;
     signal vid_ack          : std_logic;
 
-    signal i_clk_432        : std_logic;
+    signal i_clk_216        : std_logic;
 
 begin
 
@@ -550,7 +550,7 @@ begin
     
     e_pll2: entity work.pll2v
     port map (
-        clkout => i_clk_432,
+        clkout => i_clk_216,
         clkin => sys_clk
     );
 
@@ -573,10 +573,10 @@ begin
         end if;
     end process;
 
-    p_v2:process(i_clk_432)
+    p_v2:process(i_clk_216)
     variable v_vr2 : std_logic;
     begin
-        if rising_edge(i_clk_432) then
+        if rising_edge(i_clk_216) then
             if v_vr2 /= vid_ack then
                 vid_r_r2 <= vid_r_r;
                 vid_g_r2 <= vid_g_r;
@@ -599,9 +599,9 @@ begin
     )
     port map (
         rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_432,
+        clk_dac             => i_clk_216,
 
-        sample              => vid_g_r2,
+        sample              => vid_r_r2,
         
         bitstream           => vid_r_o
     );
@@ -614,7 +614,7 @@ begin
     )
     port map (
         rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_432,
+        clk_dac             => i_clk_216,
 
         sample              => vid_g_r2,
         
@@ -629,9 +629,9 @@ begin
     )
     port map (
         rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_432,
+        clk_dac             => i_clk_216,
 
-        sample              => vid_g_r2,
+        sample              => vid_b_r2,
         
         bitstream           => vid_b_o
     );
