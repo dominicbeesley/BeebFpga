@@ -77,3 +77,6 @@ IO_PORT "vid_b_o" IO_TYPE=LVCMOS33 DRIVE=24;
 
 IO_LOC "vid_cs_o" 26;
 IO_PORT "vid_cs_o" IO_TYPE=LVCMOS33 DRIVE=24;
+
+IO_LOC "vid_chr_o" 29;
+IO_PORT "vid_chr_o" IO_TYPE=LVCMOS33 DRIVE=24;

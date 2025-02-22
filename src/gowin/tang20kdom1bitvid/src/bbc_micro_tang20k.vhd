@@ -44,6 +44,7 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
 use ieee.std_logic_misc.all;
 use ieee.numeric_std.all;
+use work.common.all;
 
 entity bbc_micro_tang20k is
     generic (
@@ -91,6 +92,7 @@ entity bbc_micro_tang20k is
         vid_g_o         : out   std_logic;
         vid_b_o         : out   std_logic;
         vid_cs_o        : out   std_logic;
+        vid_chr_o       : out   std_logic;
 
         -- Magic ports for SDRAM to be inferred
         O_sdram_clk     : out   std_logic;
@@ -599,7 +601,7 @@ begin
         rst_i               => not hard_reset_n,
         clk_dac             => i_clk_432,
 
-        sample              => vid_r_r2,
+        sample              => vid_g_r2,
         
         bitstream           => vid_r_o
     );
@@ -629,10 +631,27 @@ begin
         rst_i               => not hard_reset_n,
         clk_dac             => i_clk_432,
 
-        sample              => vid_b_r2,
+        sample              => vid_g_r2,
         
         bitstream           => vid_b_o
     );
 
+
+    p_chrom:process(clock_48)
+    constant div : natural := 105;
+    constant num : natural := 704;    -- these are very rough, without 25Hz PAL freq offset
+    variable r_acc : unsigned(numbits(num)-1 downto 0) := (others => '0');
+    variable r_o : std_logic := '0';
+    begin
+        if rising_edge(clock_48) then
+            r_acc := r_acc + div;
+            if r_acc >= num then
+                r_acc := r_acc - num;
+                vid_chr_o <= r_o;
+                r_o := not r_o;                
+            end if;
+        end if;
+
+    end process;
 
 end architecture;
