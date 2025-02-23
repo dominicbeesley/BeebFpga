@@ -241,18 +241,21 @@ architecture rtl of bbc_micro_tang20k is
     -- Mem Controller Monior LEDs
     signal monitor_leds    :   std_logic_vector(5 downto 0);
 
-    signal vid_r_r          : unsigned(3 downto 0);
-    signal vid_g_r          : unsigned(3 downto 0);
-    signal vid_b_r          : unsigned(3 downto 0);
+    signal r_vid_r          : unsigned(3 downto 0);
+    signal r_vid_g          : unsigned(3 downto 0);
+    signal r_vid_b          : unsigned(3 downto 0);
 
-    signal vid_r_r2         : unsigned(3 downto 0);
-    signal vid_g_r2         : unsigned(3 downto 0);
-    signal vid_b_r2         : unsigned(3 downto 0);
+    signal r2_vid_r         : unsigned(3 downto 0);
+    signal r2_vid_g         : unsigned(3 downto 0);
+    signal r2_vid_b         : unsigned(3 downto 0);
 
-    signal vid_req          : std_logic;
-    signal vid_ack          : std_logic;
+    signal r_vid_req        : std_logic;
+    signal r_vid_ack        : std_logic;
 
     signal i_clk_216        : std_logic;
+
+    signal i_chroma_s       : signed(3 downto 0);
+    signal r2_vid_chroma    : unsigned(3 downto 0);
 
 begin
 
@@ -561,13 +564,13 @@ begin
     begin
         if rising_edge(clock_48) then
             if i_VGA_CLKEN = '1' then
-                vid_r_r <= unsigned(i_VGA_R);
-                vid_g_r <= unsigned(i_VGA_G);
-                vid_b_r <= unsigned(i_VGA_B);
-                if vid_req = '1' then
-                    vid_req <= '0';
+                r_vid_r <= unsigned(i_VGA_R);
+                r_vid_g <= unsigned(i_VGA_G);
+                r_vid_b <= unsigned(i_VGA_B);
+                if r_vid_req = '1' then
+                    r_vid_req <= '0';
                 else
-                    vid_req <= '1';
+                    r_vid_req <= '1';
                 end if;
             end if;
         end if;
@@ -577,17 +580,17 @@ begin
     variable v_vr2 : std_logic;
     begin
         if rising_edge(i_clk_216) then
-            if v_vr2 /= vid_ack then
-                vid_r_r2 <= vid_r_r;
-                vid_g_r2 <= vid_g_r;
-                vid_b_r2 <= vid_b_r;
-                if vid_ack = '1' then
-                    vid_ack <= '0';
+            if v_vr2 /= r_vid_ack then
+                r2_vid_r <= r_vid_r;
+                r2_vid_g <= r_vid_g;
+                r2_vid_b <= r_vid_b;
+                if r_vid_ack = '1' then
+                    r_vid_ack <= '0';
                 else
-                    vid_ack <= '1';
+                    r_vid_ack <= '1';
                 end if;
             end if;
-            v_vr2 := vid_req;
+            v_vr2 := r_vid_req;
         end if;
     end process;
 
@@ -601,7 +604,7 @@ begin
         rst_i               => not hard_reset_n,
         clk_dac             => i_clk_216,
 
-        sample              => vid_r_r2,
+        sample              => r2_vid_r,
         
         bitstream           => vid_r_o
     );
@@ -616,7 +619,7 @@ begin
         rst_i               => not hard_reset_n,
         clk_dac             => i_clk_216,
 
-        sample              => vid_g_r2,
+        sample              => r2_vid_g,
         
         bitstream           => vid_g_o
     );
@@ -631,27 +634,52 @@ begin
         rst_i               => not hard_reset_n,
         clk_dac             => i_clk_216,
 
-        sample              => vid_b_r2,
+        sample              => r2_vid_b,
         
         bitstream           => vid_b_o
     );
 
 
-    p_chrom:process(clock_48)
-    constant div : natural := 105;
-    constant num : natural := 704;    -- these are very rough, without 25Hz PAL freq offset
-    variable r_acc : unsigned(numbits(num)-1 downto 0) := (others => '0');
-    variable r_o : std_logic := '0';
+    e_chroma_gen:entity work.dossy_chroma
+    port map (
+
+      clk_i    => clock_48,
+
+      r_i      => unsigned(i_VGA_R),
+      g_i      => unsigned(i_VGA_G),
+      b_i      => unsigned(i_VGA_B),
+
+      hs_i     => i_VGA_hs,
+      vs_i     => i_VGA_vs,
+
+      chroma_o => i_chroma_s
+      
+   );
+
+
+    p_chrom_s2u:process(clock_48)
     begin
         if rising_edge(clock_48) then
-            r_acc := r_acc + div;
-            if r_acc >= num then
-                r_acc := r_acc - num;
-                vid_chr_o <= r_o;
-                r_o := not r_o;                
-            end if;
+            
+            r2_vid_chroma <= to_unsigned(8+to_integer(i_chroma_s), 4);
+
         end if;
 
     end process;
+
+    e_chrom:entity work.dac_1bit
+    generic map (
+        G_SAMPLE_SIZE       => 4,
+        G_SYNC_DEPTH        => 1,
+        G_PWM               => FALSE
+    )
+    port map (
+        rst_i               => not hard_reset_n,
+        clk_dac             => i_clk_216,
+
+        sample              => r2_vid_chroma,
+        
+        bitstream           => vid_chr_o
+    );
 
 end architecture;

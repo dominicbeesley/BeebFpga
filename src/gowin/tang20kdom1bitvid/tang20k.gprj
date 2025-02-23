@@ -48,6 +48,7 @@
         <File path="src/music5000_ram_dual_port.vhd" type="file.vhdl" enable="1"/>
         <File path="src/saa5050_rom_dual_port.vhd" type="file.vhdl" enable="1"/>
         <File path="src/sdramctl.vhd" type="file.vhdl" enable="1"/>
+        <File path="src/dossy_chroma.vhd" type="file.vhdl" enable="1"/>
         <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/xilinx/spi_flash.vhd" type="file.vhdl" enable="1"/>
         <File path="src/bbc_micro_tang20k.cst" type="file.cst" enable="1"/>
         <File path="src/bbc_micro_tang20k.sdc" type="file.sdc" enable="1"/>
