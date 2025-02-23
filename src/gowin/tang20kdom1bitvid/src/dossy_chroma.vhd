@@ -56,8 +56,12 @@ entity dossy_chroma is
       G_CLOCKSPEED : natural := 48000000;
 
       G_PAL     : boolean := true;
-      G_CAR_DIV : natural := 1135;
-      G_CAR_NUM : natural := 3072    -- PAL * 4 without 25Hz offset
+      G_CAR_DIV : natural := 709379;
+      G_CAR_NUM : natural := 1920000    -- PAL * 4 with 25Hz offset
+
+--      G_PAL     : boolean := true;
+--      G_CAR_DIV : natural := 1135;
+--      G_CAR_NUM : natural := 3072    -- PAL * 4 without 25Hz offset
 
 --      G_PAL     : boolean := false;
 --      G_CAR_DIV : natural := 105;
@@ -167,7 +171,11 @@ begin
    begin
       if rising_edge(clk_i) then
          if r_burst = '1' then
-            r_base_by <= to_signed(-3, r_base_by'length);
+            if G_PAL then
+               r_base_by <= to_signed(-2, r_base_by'length);
+            else
+               r_base_by <= to_signed(-3, r_base_by'length);
+            end if;
          elsif b_i(r_i'high) = '1' and g_i(g_i'high) = '0' then
             r_base_by <= to_signed(5, r_base_by'length);
          else
@@ -180,7 +188,11 @@ begin
    begin
       if rising_edge(clk_i) then
          if r_burst = '1' then
-            r_base_ry <= to_signed(3, r_base_ry'length);
+            if G_PAL then
+               r_base_ry <= to_signed(2, r_base_ry'length);
+            else
+               r_base_ry <= to_signed(0, r_base_ry'length);
+            end if;
          elsif r_i(r_i'high) = '1' and g_i(g_i'high) = '0' then
             r_base_ry <= to_signed(7, r_base_ry'length);
          else
