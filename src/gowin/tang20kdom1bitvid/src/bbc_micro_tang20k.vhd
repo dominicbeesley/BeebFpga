@@ -93,6 +93,8 @@ entity bbc_micro_tang20k is
         vid_b_o         : out   std_logic;
         vid_cs_o        : out   std_logic;
         vid_chr_o       : out   std_logic;
+        vid_car_ry_o    : out   std_logic;
+        vid_pal_sw_o    : out   std_logic;
 
         -- Magic ports for SDRAM to be inferred
         O_sdram_clk     : out   std_logic;
@@ -652,7 +654,11 @@ begin
       hs_i     => i_VGA_hs,
       vs_i     => i_VGA_vs,
 
-      chroma_o => i_chroma_s
+      chroma_o => i_chroma_s,
+
+      car_ry_o => vid_car_ry_o,
+
+      pal_sw_o => vid_pal_sw_o
       
    );
 

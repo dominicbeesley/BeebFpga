@@ -46,14 +46,22 @@ use work.common.all;
 
 entity dossy_chroma is
    generic (
-      G_BREEZE : natural := 28;
-      G_BURST  : natural := 70;
+      G_BREEZE : natural := 40;
+      G_BURST  : natural := 100;
 
       G_INBITS : natural := 4;
 
       G_OUTBITS: natural := 4;
 
-      G_CLOCKSPEED : natural := 48000000
+      G_CLOCKSPEED : natural := 48000000;
+
+      G_PAL     : boolean := true;
+      G_CAR_DIV : natural := 1135;
+      G_CAR_NUM : natural := 3072    -- PAL * 4 without 25Hz offset
+
+--      G_PAL     : boolean := false;
+--      G_CAR_DIV : natural := 105;
+--      G_CAR_NUM : natural := 352    -- NTSC * 4
    );
    port (
 
@@ -66,7 +74,10 @@ entity dossy_chroma is
       hs_i        : in  std_logic;
       vs_i        : in  std_logic;
 
-      chroma_o    : out signed(G_OUTBITS-1 downto 0)
+      chroma_o    : out signed(G_OUTBITS-1 downto 0);
+
+      car_ry_o    : out std_logic;
+      pal_sw_o    : out std_logic
       
    );
 end dossy_chroma;
@@ -87,22 +98,38 @@ signal r_mod_ry : signed(G_OUTBITS-1 downto 0);
 
 signal r_burst  : std_logic;
 
+signal r_pal_swich : std_logic := '0';
+
 begin
 
+   car_ry_o <= r_car_ry;
+   pal_sw_o <= r_pal_swich;
    
+   p_ident:process(clk_i)
+   variable vlast : std_logic;
+   begin
+      if rising_edge(clk_i) then
+         if hs_i = '1' and vlast = '0' then
+            if G_PAL then
+               r_pal_swich <= not r_pal_swich;
+            end if;
+         end if;
+         vlast := hs_i;
+      end if;
+   end process;
 
 
    p_chrom:process(clk_i)
-   constant div : natural := 105;
-   constant num : natural := 352;    -- NTSC * 4
-   variable r_acc : unsigned(numbits(num)-1 downto 0) := (others => '0');
+   constant div : natural := G_CAR_DIV;
+   constant num : natural := G_CAR_NUM;
+   variable r_acc : unsigned(numbits(num) downto 0) := (others => '0');
    variable vsr_by : std_logic_vector(3 downto 0) := "1100";
    variable vsr_ry : std_logic_vector(3 downto 0) := "1001";
    begin
       if rising_edge(clk_i) then
          r_acc := r_acc + div;
          r_car_by <= vsr_by(0);
-         r_car_ry <= vsr_ry(0);
+         r_car_ry <= vsr_ry(0) xor r_pal_swich;
          if r_acc >= num then
             r_acc := r_acc - num;
             vsr_by := vsr_by(2 downto 0) & vsr_by(3);
@@ -153,7 +180,7 @@ begin
    begin
       if rising_edge(clk_i) then
          if r_burst = '1' then
-            r_base_ry <= to_signed(0, r_base_ry'length);
+            r_base_ry <= to_signed(3, r_base_ry'length);
          elsif r_i(r_i'high) = '1' and g_i(g_i'high) = '0' then
             r_base_ry <= to_signed(7, r_base_ry'length);
          else
