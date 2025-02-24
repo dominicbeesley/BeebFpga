@@ -95,6 +95,7 @@ entity bbc_micro_tang20k is
         vid_chr_o       : out   std_logic;
         vid_car_ry_o    : out   std_logic;
         vid_pal_sw_o    : out   std_logic;
+        vid_ry_o        : out   std_logic;
 
         -- Magic ports for SDRAM to be inferred
         O_sdram_clk     : out   std_logic;
@@ -258,6 +259,9 @@ architecture rtl of bbc_micro_tang20k is
 
     signal i_chroma_s       : signed(3 downto 0);
     signal r2_vid_chroma    : unsigned(3 downto 0);
+
+    signal r2_vid_ry        : unsigned(3 downto 0);
+    signal i_ry_s           : signed(3 downto 0);
 
 begin
 
@@ -658,8 +662,9 @@ begin
 
       car_ry_o => vid_car_ry_o,
 
-      pal_sw_o => vid_pal_sw_o
-      
+      pal_sw_o => vid_pal_sw_o,
+
+      base_ry_o => i_ry_s
    );
 
 
@@ -687,5 +692,31 @@ begin
         
         bitstream           => vid_chr_o
     );
+
+    p_comp_s2u:process(clock_48)
+    begin
+        if rising_edge(clock_48) then
+            
+            r2_vid_ry <= to_unsigned(8+to_integer(i_ry_s), 4);
+
+        end if;
+
+    end process;
+
+    e_comp:entity work.dac_1bit
+    generic map (
+        G_SAMPLE_SIZE       => 4,
+        G_SYNC_DEPTH        => 1,
+        G_PWM               => FALSE
+    )
+    port map (
+        rst_i               => not hard_reset_n,
+        clk_dac             => i_clk_216,
+
+        sample              => r2_vid_ry,
+        
+        bitstream           => vid_ry_o
+    );
+
 
 end architecture;

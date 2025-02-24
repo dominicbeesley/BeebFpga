@@ -84,5 +84,8 @@ IO_PORT "vid_chr_o" IO_TYPE=LVCMOS33 DRIVE=24;
 IO_LOC "vid_car_ry_o" 30;
 IO_PORT "vid_car_ry_o" IO_TYPE=LVCMOS33 DRIVE=24;
 
-IO_LOC "vid_pal_sw_o" 31;
-IO_PORT "vid_pal_sw_o" IO_TYPE=LVCMOS33 DRIVE=24;
+//IO_LOC "vid_pal_sw_o" 31;
+//IO_PORT "vid_pal_sw_o" IO_TYPE=LVCMOS33 DRIVE=24;
+
+IO_LOC "vid_ry_o" 31;
+IO_PORT "vid_ry_o" IO_TYPE=LVCMOS33 DRIVE=24;

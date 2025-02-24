@@ -81,7 +81,9 @@ entity dossy_chroma is
       chroma_o    : out signed(G_OUTBITS-1 downto 0);
 
       car_ry_o    : out std_logic;
-      pal_sw_o    : out std_logic
+      pal_sw_o    : out std_logic;
+      base_by_o   : out signed(G_OUTBITS-1 downto 0);
+      base_ry_o   : out signed(G_OUTBITS-1 downto 0)
       
    );
 end dossy_chroma;
@@ -108,7 +110,9 @@ begin
 
    car_ry_o <= r_car_ry;
    pal_sw_o <= r_pal_swich;
-   
+   base_by_o <= r_base_by;
+   base_ry_o <= r_base_ry;
+
    p_ident:process(clk_i)
    variable vlast : std_logic;
    begin
@@ -176,10 +180,15 @@ begin
             else
                r_base_by <= to_signed(-3, r_base_by'length);
             end if;
-         elsif b_i(r_i'high) = '1' and g_i(g_i'high) = '0' then
-            r_base_by <= to_signed(5, r_base_by'length);
          else
-            r_base_by <= to_signed(0, r_base_by'length);
+            r_base_by <= to_signed(to_integer(
+               shift_right(
+                  (to_signed(to_integer(r_i), 10 + G_INBITS+1) * (-37))
+               +  (to_signed(to_integer(g_i), 10 + G_INBITS+1) * (-73))
+               +  (to_signed(to_integer(b_i), 10 + G_INBITS+1) * (111))
+               , 9)),
+               r_base_by'length
+               );
          end if;
       end if;
    end process;
@@ -193,10 +202,15 @@ begin
             else
                r_base_ry <= to_signed(0, r_base_ry'length);
             end if;
-         elsif r_i(r_i'high) = '1' and g_i(g_i'high) = '0' then
-            r_base_ry <= to_signed(7, r_base_ry'length);
          else
-            r_base_ry <= to_signed(0, r_base_ry'length);
+            r_base_ry <= to_signed(to_integer(
+               shift_right(
+                  (to_signed(to_integer(r_i), 10 + G_INBITS+1) * (157))
+               +  (to_signed(to_integer(g_i), 10 + G_INBITS+1) * (-132))
+               +  (to_signed(to_integer(b_i), 10 + G_INBITS+1) * (-25))
+               , 9)),
+               r_base_ry'length
+               );
          end if;
       end if;
    end process;
