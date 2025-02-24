@@ -75,17 +75,9 @@ IO_PORT "vid_g_o" IO_TYPE=LVCMOS33 DRIVE=24;
 IO_LOC "vid_b_o" 25;
 IO_PORT "vid_b_o" IO_TYPE=LVCMOS33 DRIVE=24;
 
-IO_LOC "vid_cs_o" 26;
-IO_PORT "vid_cs_o" IO_TYPE=LVCMOS33 DRIVE=24;
+IO_LOC "vid_hs_o" 26;
+IO_PORT "vid_hs_o" IO_TYPE=LVCMOS33 DRIVE=24;
 
-IO_LOC "vid_chr_o" 29;
-IO_PORT "vid_chr_o" IO_TYPE=LVCMOS33 DRIVE=24;
+IO_LOC "vid_vs_o" 29;
+IO_PORT "vid_vs_o" IO_TYPE=LVCMOS33 DRIVE=24;
 
-IO_LOC "vid_car_ry_o" 30;
-IO_PORT "vid_car_ry_o" IO_TYPE=LVCMOS33 DRIVE=24;
-
-//IO_LOC "vid_pal_sw_o" 31;
-//IO_PORT "vid_pal_sw_o" IO_TYPE=LVCMOS33 DRIVE=24;
-
-IO_LOC "vid_ry_o" 31;
-IO_PORT "vid_ry_o" IO_TYPE=LVCMOS33 DRIVE=24;

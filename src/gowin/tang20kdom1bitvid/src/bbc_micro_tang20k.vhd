@@ -91,11 +91,8 @@ entity bbc_micro_tang20k is
         vid_r_o         : out   std_logic;
         vid_g_o         : out   std_logic;
         vid_b_o         : out   std_logic;
-        vid_cs_o        : out   std_logic;
-        vid_chr_o       : out   std_logic;
-        vid_car_ry_o    : out   std_logic;
-        vid_pal_sw_o    : out   std_logic;
-        vid_ry_o        : out   std_logic;
+        vid_hs_o        : out   std_logic;
+        vid_vs_o        : out   std_logic;
 
         -- Magic ports for SDRAM to be inferred
         O_sdram_clk     : out   std_logic;
@@ -287,7 +284,7 @@ begin
             UseAlanDCore       => IncludeMaster
         )
         port map (
-            clock_27       => '1',
+            clock_27       => sys_clk,
             clock_32       => '0',                 -- Unused now in the core
             clock_48       => clock_48,
             clock_96       => clock_96,
@@ -370,7 +367,7 @@ begin
         );
 
     --vid_mode       <= "0001" when IncludeHDMI else "0000";
-    vid_mode <= "0000"; -- DB: force for LCD test
+    vid_mode <= "0001"; -- DB: force for LCD test
 
     keyb_dip       <= "00000011";
 
@@ -564,12 +561,13 @@ begin
     );
 
 
-    vid_cs_o <= not (i_VGA_hs xor i_VGA_vs); 
+    vid_hs_o <= i_VGA_hs;
+    vid_vs_o <= i_VGA_vs; 
 
-    p_v1:process(clock_48)
+    p_v1:process(sys_clk)
     begin
-        if rising_edge(clock_48) then
-            if i_VGA_CLKEN = '1' then
+        if rising_edge(sys_clk) then
+            --if i_VGA_CLKEN = '1' then
                 r_vid_r <= unsigned(i_VGA_R);
                 r_vid_g <= unsigned(i_VGA_G);
                 r_vid_b <= unsigned(i_VGA_B);
@@ -578,7 +576,7 @@ begin
                 else
                     r_vid_req <= '1';
                 end if;
-            end if;
+            --end if;
         end if;
     end process;
 
@@ -645,78 +643,6 @@ begin
         bitstream           => vid_b_o
     );
 
-
-    e_chroma_gen:entity work.dossy_chroma
-    port map (
-
-      clk_i    => clock_48,
-
-      r_i      => unsigned(i_VGA_R),
-      g_i      => unsigned(i_VGA_G),
-      b_i      => unsigned(i_VGA_B),
-
-      hs_i     => i_VGA_hs,
-      vs_i     => i_VGA_vs,
-
-      chroma_o => i_chroma_s,
-
-      car_ry_o => vid_car_ry_o,
-
-      pal_sw_o => vid_pal_sw_o,
-
-      base_ry_o => i_ry_s
-   );
-
-
-    p_chrom_s2u:process(clock_48)
-    begin
-        if rising_edge(clock_48) then
-            
-            r2_vid_chroma <= to_unsigned(8+to_integer(i_chroma_s), 4);
-
-        end if;
-
-    end process;
-
-    e_chrom:entity work.dac_1bit
-    generic map (
-        G_SAMPLE_SIZE       => 4,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
-    )
-    port map (
-        rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_216,
-
-        sample              => r2_vid_chroma,
-        
-        bitstream           => vid_chr_o
-    );
-
-    p_comp_s2u:process(clock_48)
-    begin
-        if rising_edge(clock_48) then
-            
-            r2_vid_ry <= to_unsigned(8+to_integer(i_ry_s), 4);
-
-        end if;
-
-    end process;
-
-    e_comp:entity work.dac_1bit
-    generic map (
-        G_SAMPLE_SIZE       => 4,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
-    )
-    port map (
-        rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_216,
-
-        sample              => r2_vid_ry,
-        
-        bitstream           => vid_ry_o
-    );
 
 
 end architecture;
