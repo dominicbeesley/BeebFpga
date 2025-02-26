@@ -241,24 +241,32 @@ architecture rtl of bbc_micro_tang20k is
     -- Mem Controller Monior LEDs
     signal monitor_leds    :   std_logic_vector(5 downto 0);
 
-    signal r_vid_r          : unsigned(3 downto 0);
-    signal r_vid_g          : unsigned(3 downto 0);
-    signal r_vid_b          : unsigned(3 downto 0);
+    signal r0_vid_r         : unsigned(3 downto 0);
+    signal r0_vid_g         : unsigned(3 downto 0);
+    signal r0_vid_b         : unsigned(3 downto 0);
 
-    signal r2_vid_r         : unsigned(3 downto 0);
-    signal r2_vid_g         : unsigned(3 downto 0);
-    signal r2_vid_b         : unsigned(3 downto 0);
+    signal r_vid_r          : unsigned(4 downto 0);
+    signal r_vid_g          : unsigned(4 downto 0);
+    signal r_vid_b          : unsigned(4 downto 0);
+
+    signal r2_vid_r         : unsigned(4 downto 0);
+    signal r2_vid_g         : unsigned(4 downto 0);
+    signal r2_vid_b         : unsigned(4 downto 0);
 
     signal r_vid_req        : std_logic;
     signal r_vid_ack        : std_logic;
 
-    signal i_clk_216        : std_logic;
+    signal i_clk_dac        : std_logic;
 
     signal i_chroma_s       : signed(3 downto 0);
     signal r2_vid_chroma    : unsigned(3 downto 0);
 
     signal r2_vid_ry        : unsigned(3 downto 0);
     signal i_ry_s           : signed(3 downto 0);
+
+    signal i_rnd_r          : std_logic;
+    signal i_rnd_g          : std_logic;
+    signal i_rnd_b          : std_logic;
 
 begin
 
@@ -556,7 +564,7 @@ begin
     
     e_pll2: entity work.pll2v
     port map (
-        clkout => i_clk_216,
+        clkout => i_clk_dac,
         clkin => sys_clk
     );
 
@@ -564,13 +572,65 @@ begin
     vid_hs_o <= i_VGA_hs;
     vid_vs_o <= i_VGA_vs; 
 
+    e_rnd_r:entity work.g_lfsr
+    generic map (
+        G_M => 24,
+        G_POLY => "111000010000000000000000",
+        G_SEED => "101010101010101010101010"
+        )
+    port map (
+        clk_i          => sys_clk,
+        clken_i        => '1',
+        srst_i         => '0',
+        bit_o          => i_rnd_r
+        );
+
+    e_rnd_g:entity work.g_lfsr
+    generic map (
+        G_M => 24,
+        G_POLY => "111000010000000000000000",
+        G_SEED => "101101010100111010110101"
+        )
+    port map (
+        clk_i          => sys_clk,
+        clken_i        => '1',
+        srst_i         => '0',
+        bit_o          => i_rnd_g
+        );
+
+    e_rnd_b:entity work.g_lfsr
+    generic map (
+        G_M => 24,
+        G_POLY => "111000010000000000000000",
+        G_SEED => "111110001111001101010011"
+        )
+    port map (
+        clk_i          => sys_clk,
+        clken_i        => '1',
+        srst_i         => '0',
+        bit_o          => i_rnd_b
+        );
+
+
     p_v1:process(sys_clk)
+        function U(S : in std_logic) return unsigned is
+        variable r : unsigned(0 downto 0);
+        begin
+            r(0) := S;
+            return r;
+        end function U;
     begin
         if rising_edge(sys_clk) then
             --if i_VGA_CLKEN = '1' then
-                r_vid_r <= unsigned(i_VGA_R);
-                r_vid_g <= unsigned(i_VGA_G);
-                r_vid_b <= unsigned(i_VGA_B);
+
+                r0_vid_r <= unsigned(i_VGA_R);
+                r0_vid_g <= unsigned(i_VGA_G);
+                r0_vid_b <= unsigned(i_VGA_B);
+
+                r_vid_r <= ("0" & r0_vid_r) + to_unsigned(15, r_vid_r'length) + resize(U(i_rnd_r), r_vid_r'length);                
+                r_vid_g <= ("0" & r0_vid_g) + to_unsigned(15, r_vid_g'length) + resize(U(i_rnd_g), r_vid_g'length);                
+                r_vid_b <= ("0" & r0_vid_b) + to_unsigned(15, r_vid_b'length) + resize(U(i_rnd_b), r_vid_b'length);                
+
                 if r_vid_req = '1' then
                     r_vid_req <= '0';
                 else
@@ -580,10 +640,10 @@ begin
         end if;
     end process;
 
-    p_v2:process(i_clk_216)
+    p_v2:process(i_clk_dac)
     variable v_vr2 : std_logic;
     begin
-        if rising_edge(i_clk_216) then
+        if rising_edge(i_clk_dac) then
             if v_vr2 /= r_vid_ack then
                 r2_vid_r <= r_vid_r;
                 r2_vid_g <= r_vid_g;
@@ -600,13 +660,13 @@ begin
 
     e_vidr:entity work.dac_1bit
     generic map (
-        G_SAMPLE_SIZE       => 4,
+        G_SAMPLE_SIZE       => 5,
         G_SYNC_DEPTH        => 1,
         G_PWM               => FALSE
     )
     port map (
         rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_216,
+        clk_dac             => i_clk_dac,
 
         sample              => r2_vid_r,
         
@@ -615,13 +675,13 @@ begin
 
     e_vidg:entity work.dac_1bit
     generic map (
-        G_SAMPLE_SIZE       => 4,
+        G_SAMPLE_SIZE       => 5,
         G_SYNC_DEPTH        => 1,
         G_PWM               => FALSE
     )
     port map (
         rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_216,
+        clk_dac             => i_clk_dac,
 
         sample              => r2_vid_g,
         
@@ -630,13 +690,13 @@ begin
 
     e_vidb:entity work.dac_1bit
     generic map (
-        G_SAMPLE_SIZE       => 4,
+        G_SAMPLE_SIZE       => 5,
         G_SYNC_DEPTH        => 1,
         G_PWM               => FALSE
     )
     port map (
         rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_216,
+        clk_dac             => i_clk_dac,
 
         sample              => r2_vid_b,
         
