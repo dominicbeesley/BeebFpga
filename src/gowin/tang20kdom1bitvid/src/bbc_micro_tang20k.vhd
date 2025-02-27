@@ -168,6 +168,20 @@ architecture rtl of bbc_micro_tang20k is
         );
     end component;
 
+    COMPONENT CLKDIV
+        GENERIC(
+            DIV_MODE:STRING:="2";
+            GSREN:STRING:="false"
+        );
+        PORT(
+            HCLKIN:IN std_logic;
+            RESETN:IN std_logic;
+            CALIB:IN std_logic;
+            CLKOUT:OUT std_logic
+        );
+    END COMPONENT;
+
+
 
     --------------------------------------------------------
     -- Functions
@@ -257,6 +271,7 @@ architecture rtl of bbc_micro_tang20k is
     signal r_vid_ack        : std_logic;
 
     signal i_clk_dac        : std_logic;
+    signal i_clk_dac_px     : std_logic;
 
     signal i_chroma_s       : signed(3 downto 0);
     signal r2_vid_chroma    : unsigned(3 downto 0);
@@ -627,9 +642,14 @@ begin
                 r0_vid_g <= unsigned(i_VGA_G);
                 r0_vid_b <= unsigned(i_VGA_B);
 
-                r_vid_r <= ("0" & r0_vid_r) + to_unsigned(15, r_vid_r'length) + resize(U(i_rnd_r), r_vid_r'length);                
-                r_vid_g <= ("0" & r0_vid_g) + to_unsigned(15, r_vid_g'length) + resize(U(i_rnd_g), r_vid_g'length);                
-                r_vid_b <= ("0" & r0_vid_b) + to_unsigned(15, r_vid_b'length) + resize(U(i_rnd_b), r_vid_b'length);                
+--                r_vid_r <= ("0" & r0_vid_r) + to_unsigned(15, r_vid_r'length); -- + resize(U(i_rnd_r), r_vid_r'length);                
+--                r_vid_g <= ("0" & r0_vid_g) + to_unsigned(15, r_vid_g'length); -- + resize(U(i_rnd_g), r_vid_g'length);                
+--                r_vid_b <= ("0" & r0_vid_b) + to_unsigned(15, r_vid_b'length); -- + resize(U(i_rnd_b), r_vid_b'length);                
+--
+
+                r_vid_r <= (r0_vid_r & "0");                
+                r_vid_g <= (r0_vid_g & "0");                
+                r_vid_b <= (r0_vid_b & "0");                
 
                 if r_vid_req = '1' then
                     r_vid_req <= '0';
@@ -640,10 +660,10 @@ begin
         end if;
     end process;
 
-    p_v2:process(i_clk_dac)
+    p_v2:process(i_clk_dac_px)
     variable v_vr2 : std_logic;
     begin
-        if rising_edge(i_clk_dac) then
+        if rising_edge(i_clk_dac_px) then
             if v_vr2 /= r_vid_ack then
                 r2_vid_r <= r_vid_r;
                 r2_vid_g <= r_vid_g;
@@ -658,49 +678,62 @@ begin
         end if;
     end process;
 
-    e_vidr:entity work.dac_1bit
-    generic map (
-        G_SAMPLE_SIZE       => 5,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
+    e_ckdiv5:CLKDIV
+    GENERIC MAP(
+        DIV_MODE=>"5",
+        GSREN=>"false"
     )
-    port map (
-        rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_dac,
-
-        sample              => r2_vid_r,
-        
-        bitstream           => vid_r_o
+    PORT MAP(
+        HCLKIN=>i_clk_dac,
+        RESETN=>'1',
+        CALIB=>'0',
+        CLKOUT=>i_clk_dac_px
     );
 
-    e_vidg:entity work.dac_1bit
+
+    e_vidr:entity work.dac1_oser
     generic map (
         G_SAMPLE_SIZE       => 5,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
+        G_SYNC_DEPTH        => 1
     )
     port map (
         rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_dac,
+        clk_dac_i           => i_clk_dac,
+        clk_dac_px_i        => i_clk_dac_px,
 
-        sample              => r2_vid_g,
+        sample_i            => r2_vid_r,
         
-        bitstream           => vid_g_o
+        bitstream_o         => vid_r_o
     );
 
-    e_vidb:entity work.dac_1bit
+    e_vidg:entity work.dac1_oser
     generic map (
         G_SAMPLE_SIZE       => 5,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
+        G_SYNC_DEPTH        => 1
     )
     port map (
         rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_dac,
+        clk_dac_i           => i_clk_dac,
+        clk_dac_px_i        => i_clk_dac_px,
 
-        sample              => r2_vid_b,
+        sample_i            => r2_vid_g,
         
-        bitstream           => vid_b_o
+        bitstream_o         => vid_g_o
+    );
+
+    e_vidb:entity work.dac1_oser
+    generic map (
+        G_SAMPLE_SIZE       => 5,
+        G_SYNC_DEPTH        => 1
+    )
+    port map (
+        rst_i               => not hard_reset_n,
+        clk_dac_i           => i_clk_dac,
+        clk_dac_px_i        => i_clk_dac_px,
+
+        sample_i            => r2_vid_b,
+        
+        bitstream_o         => vid_b_o
     );
 
 

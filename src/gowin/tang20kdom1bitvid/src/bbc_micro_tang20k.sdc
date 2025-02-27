@@ -5,7 +5,8 @@ create_clock -name sys_clk -period 37.037 -waveform {0 18.518} [get_ports {sys_c
 create_generated_clock -name clock_48 -source [get_ports {sys_clk}] -master_clock sys_clk -divide_by 27 -multiply_by 48 [get_nets {clock_48}]
 create_generated_clock -name clock_96 -source [get_ports {sys_clk}] -master_clock sys_clk -divide_by 27 -multiply_by 96 [get_nets {clock_96}]
 //create_generated_clock -name clock_432 -source [get_ports {sys_clk}] -master_clock sys_clk -divide_by 1 -multiply_by 16 [get_nets {i_clk_432}]
-create_generated_clock -name clock_dac -source [get_ports {sys_clk}] -master_clock sys_clk -divide_by 1 -multiply_by 8 [get_nets {i_clk_dac}]
+create_generated_clock -name clock_dac -source [get_ports {sys_clk}] -master_clock sys_clk -divide_by 1 -multiply_by 20 [get_nets {i_clk_dac}]
+create_generated_clock -name clk_dac_px -source [get_nets {i_clk_dac}] -master_clock clock_dac -divide_by 5 -multiply_by 1 [get_nets {i_clk_dac_px}]
 
 set_false_path -from [get_clocks {sys_clk}] -to [get_clocks {clock_dac}]
 
