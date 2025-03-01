@@ -59,7 +59,7 @@ entity bbc_micro_tang25k is
         IncludeMusic5000       : boolean := true;
         IncludeMusic5000Filter : boolean := true; -- Music 5000 Low Pass IIR Filter
         IncludeMusic5000SPDIF  : boolean := false; -- Music 5000 20-bit SPDIF Output
-        IncludeMixerResampler  : boolean := false;
+        IncludeMixerResampler  : boolean := true;
         IncludeICEDebugger     : boolean := G_CONFIG_DEBUGGER;
         IncludeVideoNuLA       : boolean := true;
         IncludeTrace           : boolean := true;
@@ -522,7 +522,7 @@ begin
     -- the 27MHz clock is also used to generate 48/96/96p
     e_pll_27_135: entity work.pll_27_135
     port map (
-        lock        => open,
+        lock        => pll1_lock,
         clkout0     => clock_27,            -- pixel clock
         clkout1     => clock_135,           -- hdmi serial clock
         clkin       => brd_clk_50
@@ -531,7 +531,7 @@ begin
     -- generate 48, 96, 96p for main system clock and sdram
     e_pll_48_96: entity work.pll_48_96
     port map (
-        lock        => open,
+        lock        => pll2_lock,
         clkout0     => clock_48,            -- core clock
         clkout1     => clock_96,            -- sdram controller clock
         clkout2     => clock_96_p,          -- sdram memory chips clock, phase shifted 
@@ -711,8 +711,8 @@ begin
 
         audio_l      <= std_logic_vector(mixer_l(19 downto 4));
         audio_r      <= std_logic_vector(mixer_r(19 downto 4));
-        hdmi_audio_l <= audio_l; when hdmi_audio_src = '1' else audio_l_legacy;
-        hdmi_audio_r <= audio_r; when hdmi_audio_src = '1' else audio_r_legacy;
+        hdmi_audio_l <= audio_l when hdmi_audio_src = '1' else audio_l_legacy;
+        hdmi_audio_r <= audio_r when hdmi_audio_src = '1' else audio_r_legacy;
 
     end generate;
 
