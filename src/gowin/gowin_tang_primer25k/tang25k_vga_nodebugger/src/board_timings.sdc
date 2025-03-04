@@ -6,6 +6,10 @@ create_clock -name brd_clk_50 -period 20.0 -waveform {0 10} [get_ports {brd_clk_
 create_generated_clock -name clock_27 -source [get_ports {brd_clk_50}] -master_clock brd_clk_50 -divide_by 50 -multiply_by 27 [get_nets {clock_27}]
 //create_generated_clock -name clock_135 -source [get_ports {brd_clk_50}] -master_clock brd_clk_50 -divide_by 10 -multiply_by 27 [get_nets {clock_135}]
 
+create_generated_clock -name clock_dac -source [get_nets {clock_27}] -master_clock clock_27 -divide_by 1 -multiply_by 20 [get_nets {i_clk_dac}]
+create_generated_clock -name clk_dac_px -source [get_nets {i_clk_dac}] -master_clock clock_dac -divide_by 5 -multiply_by 1 [get_nets {i_clk_dac_px}]
+
+
 //Core clocks - derived from HDMI clocks
 create_generated_clock -name clock_48 -source [get_nets {clock_27}] -master_clock clock_27 -divide_by 18 -multiply_by 32 [get_nets {clock_48}]
 create_generated_clock -name clock_96 -source [get_nets {clock_27}] -master_clock clock_27 -divide_by 9 -multiply_by 32 [get_nets {clock_96}]

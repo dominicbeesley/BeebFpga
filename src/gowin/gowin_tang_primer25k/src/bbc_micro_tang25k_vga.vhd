@@ -558,7 +558,7 @@ begin
     port map (
         lock        => pll1_lock,
         clkout0     => clock_27,            -- pixel clock
-        clkout1     => i_clk_dac,           -- hdmi serial clock
+        clkout1     => open,                -- hdmi serial clock
         clkin       => brd_clk_50
     );
 
@@ -573,6 +573,11 @@ begin
         clkin       => clock_27
     );
     
+    e_pll_dac: entity work.pll_dac
+    port map (
+        clkout0     => i_clk_dac,           -- pixel clock
+        clkin       => clock_27
+    );
 
 
     clkdiv4 : CLKDIV
