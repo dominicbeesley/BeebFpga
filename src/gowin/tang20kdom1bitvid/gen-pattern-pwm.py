@@ -11,19 +11,15 @@ max = 2**bits - 1
 
 
 for i in range(max + 1):
-    tgt = i / max
-    acc = 0
-    tot = 0 #random.randint(0, 1)
-    n = 1
+    t = width * rep * i / max
+    n = 0
     for k in range(rep):
         s = ""
         for j in range(width):        
-            avg = tot / n
-            if tgt > avg:
-                s = s + "1"
-                tot += 1
-            else:
+            if n > t:
                 s = s + "0"
+            else:
+                s = s + "1"
             n += 1
                 
         if i == max and k == rep-1:

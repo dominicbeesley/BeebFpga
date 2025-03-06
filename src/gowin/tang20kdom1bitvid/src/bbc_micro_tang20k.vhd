@@ -642,14 +642,14 @@ begin
                 r0_vid_g <= unsigned(i_VGA_G);
                 r0_vid_b <= unsigned(i_VGA_B);
 
---                r_vid_r <= ("0" & r0_vid_r) + to_unsigned(15, r_vid_r'length); -- + resize(U(i_rnd_r), r_vid_r'length);                
---                r_vid_g <= ("0" & r0_vid_g) + to_unsigned(15, r_vid_g'length); -- + resize(U(i_rnd_g), r_vid_g'length);                
---                r_vid_b <= ("0" & r0_vid_b) + to_unsigned(15, r_vid_b'length); -- + resize(U(i_rnd_b), r_vid_b'length);                
---
+                r_vid_r <= ("0" & r0_vid_r) + to_unsigned(15, r_vid_r'length); -- + resize(U(i_rnd_r), r_vid_r'length);                
+                r_vid_g <= ("0" & r0_vid_g) + to_unsigned(15, r_vid_g'length); -- + resize(U(i_rnd_g), r_vid_g'length);                
+                r_vid_b <= ("0" & r0_vid_b) + to_unsigned(15, r_vid_b'length); -- + resize(U(i_rnd_b), r_vid_b'length);                
 
-                r_vid_r <= (r0_vid_r & "0");                
-                r_vid_g <= (r0_vid_g & "0");                
-                r_vid_b <= (r0_vid_b & "0");                
+
+                --r_vid_r <= (r0_vid_r & "0");                
+                --r_vid_g <= (r0_vid_g & "0");                
+                --r_vid_b <= (r0_vid_b & "0");                
 
                 if r_vid_req = '1' then
                     r_vid_req <= '0';
