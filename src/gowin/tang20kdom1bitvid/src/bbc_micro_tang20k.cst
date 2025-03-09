@@ -11,9 +11,9 @@ IO_LOC  "btn2" 87;
 IO_PORT "btn2" PULL_MODE=DOWN;
 
 // Keyboard
-IO_LOC  "ps2_clk" 73;
+IO_LOC  "ps2_clk" 27;
 IO_PORT "ps2_clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
-IO_LOC  "ps2_data" 74;
+IO_LOC  "ps2_data" 28;
 IO_PORT "ps2_data" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 
 // Mouse
@@ -66,18 +66,18 @@ IO_PORT "flash_so" IO_TYPE=LVCMOS33 PULL_MODE=UP;
 
 // 1 bit video 
 
-IO_LOC "vid_r_o" 27;
+IO_LOC "vid_r_o" 73;
 IO_PORT "vid_r_o" IO_TYPE=LVCMOS33 DRIVE=24;
 
-IO_LOC "vid_g_o" 28;
+IO_LOC "vid_g_o" 74;
 IO_PORT "vid_g_o" IO_TYPE=LVCMOS33 DRIVE=24;
 
-IO_LOC "vid_b_o" 25;
+IO_LOC "vid_b_o" 75;
 IO_PORT "vid_b_o" IO_TYPE=LVCMOS33 DRIVE=24;
 
-IO_LOC "vid_hs_o" 26;
+IO_LOC "vid_hs_o" 85;
 IO_PORT "vid_hs_o" IO_TYPE=LVCMOS33 DRIVE=24;
 
-IO_LOC "vid_vs_o" 29;
+IO_LOC "vid_vs_o" 77;
 IO_PORT "vid_vs_o" IO_TYPE=LVCMOS33 DRIVE=24;
 
