@@ -245,13 +245,15 @@ architecture rtl of bbc_micro_tang20k is
     signal r0_vid_g         : unsigned(3 downto 0);
     signal r0_vid_b         : unsigned(3 downto 0);
 
-    signal r_vid_r          : unsigned(4 downto 0);
-    signal r_vid_g          : unsigned(4 downto 0);
-    signal r_vid_b          : unsigned(4 downto 0);
+    constant C_VID_SAMPLE_SIZE  : natural := 5;
 
-    signal r2_vid_r         : unsigned(4 downto 0);
-    signal r2_vid_g         : unsigned(4 downto 0);
-    signal r2_vid_b         : unsigned(4 downto 0);
+    signal r_vid_r          : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
+    signal r_vid_g          : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
+    signal r_vid_b          : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
+
+    signal r2_vid_r         : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
+    signal r2_vid_g         : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
+    signal r2_vid_b         : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
 
     signal r_vid_req        : std_logic;
     signal r_vid_ack        : std_logic;
@@ -601,9 +603,10 @@ begin
                 r0_vid_g <= unsigned(i_VGA_G);
                 r0_vid_b <= unsigned(i_VGA_B);
 
-                r_vid_r <= ("0" & r0_vid_r) + to_unsigned(15, r_vid_r'length) + resize(U(i_rnd_r), r_vid_r'length);                
-                r_vid_g <= ("0" & r0_vid_g) + to_unsigned(15, r_vid_g'length) + resize(U(i_rnd_r), r_vid_r'length);                
-                r_vid_b <= ("0" & r0_vid_b) + to_unsigned(15, r_vid_b'length) + resize(U(i_rnd_r), r_vid_r'length);                
+                r_vid_r <= ("0" & r0_vid_r) + to_unsigned(8, r_vid_r'length); -- + resize(U(i_rnd_r), r_vid_r'length);                
+                r_vid_g <= ("0" & r0_vid_g) + to_unsigned(8, r_vid_g'length); -- + resize(U(i_rnd_r), r_vid_r'length);                
+                r_vid_b <= ("0" & r0_vid_b) + to_unsigned(8, r_vid_b'length); -- + resize(U(i_rnd_r), r_vid_r'length);                
+
 
                 if r_vid_req = '1' then
                     r_vid_req <= '0';
@@ -630,7 +633,7 @@ begin
 
     e_vidr:entity work.dac_1bit
     generic map (
-        G_SAMPLE_SIZE       => 5,
+        G_SAMPLE_SIZE       => C_VID_SAMPLE_SIZE,
         G_SYNC_DEPTH        => 1,
         G_PWM               => FALSE
     )
@@ -645,7 +648,7 @@ begin
 
     e_vidg:entity work.dac_1bit
     generic map (
-        G_SAMPLE_SIZE       => 5,
+        G_SAMPLE_SIZE       => C_VID_SAMPLE_SIZE,
         G_SYNC_DEPTH        => 1,
         G_PWM               => FALSE
     )
@@ -660,7 +663,7 @@ begin
 
     e_vidb:entity work.dac_1bit
     generic map (
-        G_SAMPLE_SIZE       => 5,
+        G_SAMPLE_SIZE       => C_VID_SAMPLE_SIZE,
         G_SYNC_DEPTH        => 1,
         G_PWM               => FALSE
     )
