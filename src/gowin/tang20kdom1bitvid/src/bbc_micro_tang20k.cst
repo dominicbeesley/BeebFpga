@@ -1,0 +1,91 @@
+// System Clock (27MHz)
+IO_LOC  "sys_clk" 4;
+IO_PORT "sys_clk" IO_TYPE=LVCMOS33;
+
+// Button 1
+IO_LOC  "btn1" 88;
+IO_PORT "btn1" PULL_MODE=DOWN;
+
+// Button 2
+IO_LOC  "btn2" 87;
+IO_PORT "btn2" PULL_MODE=DOWN;
+
+// Keyboard
+IO_LOC  "ps2_clk" 73;
+IO_PORT "ps2_clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+IO_LOC  "ps2_data" 74;
+IO_PORT "ps2_data" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+// Mouse
+IO_LOC  "ps2_mouse_clk" 71;
+IO_PORT "ps2_mouse_clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+IO_LOC  "ps2_mouse_data" 72;
+IO_PORT "ps2_mouse_data" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+
+// SD Card
+IO_LOC  "tf_cs" 81;
+IO_PORT "tf_cs" IO_TYPE=LVCMOS33;
+IO_LOC  "tf_mosi" 82;
+IO_PORT "tf_mosi" IO_TYPE=LVCMOS33;
+IO_LOC  "tf_sclk" 83;
+IO_PORT "tf_sclk" IO_TYPE=LVCMOS33;
+IO_LOC  "tf_miso" 84;
+IO_PORT "tf_miso" IO_TYPE=LVCMOS33;
+
+// UART
+IO_LOC  "uart_tx" 69;
+IO_PORT "uart_tx" IO_TYPE=LVCMOS33;
+IO_LOC  "uart_rx" 70;
+IO_PORT "uart_rx" IO_TYPE=LVCMOS33;
+
+// LEDs
+IO_LOC  "led[5]" 20;
+IO_PORT "led[5]" IO_TYPE=LVCMOS33;
+IO_LOC  "led[4]" 19;
+IO_PORT "led[4]" IO_TYPE=LVCMOS33;
+IO_LOC  "led[3]" 18;
+IO_PORT "led[3]" IO_TYPE=LVCMOS33;
+IO_LOC  "led[2]" 17;
+IO_PORT "led[2]" IO_TYPE=LVCMOS33;
+IO_LOC  "led[1]" 16;
+IO_PORT "led[1]" IO_TYPE=LVCMOS33;
+IO_LOC  "led[0]" 15;
+IO_PORT "led[0]" IO_TYPE=LVCMOS33;
+
+// SPI Flash
+IO_LOC  "flash_cs" 60;
+IO_PORT "flash_cs" IO_TYPE=LVCMOS33;
+IO_LOC  "flash_ck" 59;
+IO_PORT "flash_ck" IO_TYPE=LVCMOS33;
+IO_LOC  "flash_si" 61;
+IO_PORT "flash_si" IO_TYPE=LVCMOS33;
+IO_LOC  "flash_so" 62;
+IO_PORT "flash_so" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+
+// 1 bit video 
+
+IO_LOC "vid_r_o" 27;
+IO_PORT "vid_r_o" IO_TYPE=LVCMOS33 DRIVE=24;
+
+IO_LOC "vid_g_o" 28;
+IO_PORT "vid_g_o" IO_TYPE=LVCMOS33 DRIVE=24;
+
+IO_LOC "vid_b_o" 25;
+IO_PORT "vid_b_o" IO_TYPE=LVCMOS33 DRIVE=24;
+
+IO_LOC "vid_cs_o" 26;
+IO_PORT "vid_cs_o" IO_TYPE=LVCMOS33 DRIVE=24;
+
+IO_LOC "vid_chr_o" 29;
+IO_PORT "vid_chr_o" IO_TYPE=LVCMOS33 DRIVE=24;
+
+IO_LOC "vid_car_ry_o" 30;
+IO_PORT "vid_car_ry_o" IO_TYPE=LVCMOS33 DRIVE=24;
+
+//IO_LOC "vid_pal_sw_o" 31;
+//IO_PORT "vid_pal_sw_o" IO_TYPE=LVCMOS33 DRIVE=24;
+
+IO_LOC "vid_ry_o" 31;
+IO_PORT "vid_ry_o" IO_TYPE=LVCMOS33 DRIVE=24;
