@@ -104,6 +104,8 @@ entity bbc_micro_core is
         -- Control input to exchange Keyboard and Mouse connections
         ps2_swap       : in    std_logic := '0';
 
+        dbg_keyboard_state   : out std_logic_vector(5 downto 0);
+
         -- Video
         video_red      : out   std_logic_vector (3 downto 0);
         video_green    : out   std_logic_vector (3 downto 0);
@@ -1200,7 +1202,8 @@ begin
            rx_data      => ps2_keyb_data,
            read         => ps2_keyb_valid,
            busy         => ps2_keyb_busy,
-           err          => ps2_keyb_error
+           err          => ps2_keyb_error,
+           dom_debug(5 downto 0)    => dbg_keyboard_state
         );
 
     -- PS/2 Keyboard Controller

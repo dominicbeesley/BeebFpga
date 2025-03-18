@@ -398,7 +398,7 @@ architecture rtl of bbc_micro_tang20k is
 
     -- debug keyboard
 
-    signal dbg_keyboard_state : std_logic_vector(3 downto 0);
+    signal dbg_keyboard_state : std_logic_vector(5 downto 0);
 
 
 begin
@@ -945,7 +945,7 @@ begin
 --               monitor_leds                       when IncludeMonitor               else
 --               normal_leds;
 
-        led <= ("00" & dbg_keyboard_state) xor "111111";
+        led <= (dbg_keyboard_state) xor "111111";
 
 
         process(clock_48)
