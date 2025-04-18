@@ -47,6 +47,8 @@ use ieee.numeric_std.all;
 library work;
 use work.board_config_pack.all;
 use work.sample_rate_converter_pkg.all;
+use work.ext_mem_pack.all;
+
 
 entity bbc_micro_tang20k is
     generic (
@@ -90,7 +92,7 @@ entity bbc_micro_tang20k is
 
 
         -- Test/GPIO
-        gpio            : out   std_logic_vector(3 downto 0);
+        --gpio            : out   std_logic_vector(3 downto 0);
 
         -- Keyboard / Mouse
         ps2_clk         : inout std_logic;
@@ -337,6 +339,9 @@ architecture rtl of bbc_micro_tang20k is
     -- output used to load sample into SPDIF (spdif clock domain)
     signal spdif_load      : std_logic;
 
+    -- config signal to select SPDIF from mixer (0) or music 5000 (1)
+    signal m5k_spdif_en    : std_logic := '0';
+
     signal config_counter  : std_logic_vector(21 downto 0);
     signal config_last     : std_logic;
     signal config          : std_logic_vector(9 downto 0);
@@ -344,6 +349,15 @@ architecture rtl of bbc_micro_tang20k is
     signal powerup_reset_n : std_logic := '0';
     signal hard_reset_n    : std_logic;
     signal reset_counter   : std_logic_vector(RESETBITS downto 0);
+
+    -- signals between core tand bootstrapper
+    signal i_em_c2boot     : em_c2m_t;
+    signal i_em_boot2c     : em_m2c_t;
+
+    -- signals between bootstrapper and memory
+    signal i_em_boot2m     : em_c2m_t;
+    signal i_em_m2boot     : em_m2c_t;
+
 
     signal ext_A_stb       : std_logic;
     signal ext_A           : std_logic_vector (18 downto 0);
@@ -467,14 +481,10 @@ begin
             m5k_audio_r     => m5k_audio_r,
             m5k_strobe      => m5k_strobe,
             m5k_spdif       => m5k_spdif,
-            ext_nOE         => ext_nOE,
-            ext_nWE         => ext_nWE,
-            ext_nWE_long    => ext_nWE_long,
-            ext_nCS         => ext_nCS,
-            ext_A           => ext_A,
-            ext_A_stb       => ext_A_stb,
-            ext_Dout        => ext_Dout,
-            ext_Din         => ext_Din,
+            
+            em_c2m_o        => i_em_c2boot,
+            em_m2c_i        => i_em_boot2c,
+
             SDMISO          => tf_miso,
             SDSS            => tf_cs,
             SDCLK           => tf_sclk,
@@ -1047,54 +1057,90 @@ begin
         pa_en      <= '0';
     end generate;
 
+
+    --------------------------------------------------------
+    -- Boot strapper
+    --------------------------------------------------------
+    -- TODO: move this to core with generics passed in possibly
+
+
+    e_boot: entity work.bootstrap
+    generic map (
+            IncludeMonitor => IncludeMonitor,
+            IncludeMinimalBeeb => true,
+            IncludeMinimalMaster => false
+        )
+    port map (
+
+        CLK_48         => clock_48,
+        m128_mode      => m128_mode,
+        RST_n          => powerup_reset_n,
+        READY          => mem_ready,
+        led            => monitor_leds,
+
+        -- signals between core tand bootstrapper
+        em_c2boot_i    => i_em_c2boot,
+        em_boot2c_o    => i_em_boot2c,
+
+        -- signals between bootstrapper and memory
+        em_boot2m_o    => i_em_boot2m,
+        em_m2boot_i    => i_em_m2boot,
+
+        -- flash signals
+        FLASH_CS       => flash_cs,
+        FLASH_SI       => flash_si,
+        FLASH_CK       => flash_ck,
+        FLASH_SO       => flash_so
+        );
+
+
+
     --------------------------------------------------------
     -- SDRAM Memory Controller
     --------------------------------------------------------
 
-    e_mem: entity work.mem_tang_20k
-        generic map (
-            SIM => SIM,
-            IncludeMonitor => IncludeMonitor,
-            IncludeBootStrap => IncludeBootStrap,
-            IncludeMinimalBeeb => true,
-            IncludeMinimalMaster => false,
-            PRJ_ROOT => PRJ_ROOT,
-            MOS_NAME => MOS_NAME
-        )
-        port map (
-            m128_mode      => m128_mode,
-            RST_n          => powerup_reset_n,
-            READY          => mem_ready,
-            CLK_96         => clock_96,
-            CLK_96_p       => clock_96_p,
-            CLK_48         => clock_48,
-            core_A_stb     => ext_A_stb,
-            core_A         => ext_A,
-            core_Din       => ext_Din,
-            core_Dout      => ext_Dout,
-            core_nCS       => ext_nCS,
-            core_nWE       => ext_nWE,
-            core_nWE_long  => ext_nWE_long,
-            core_nOE       => ext_nOE,
+    e_sdram:entity work.sdram_em
+    generic map (
 
-            O_sdram_clk    => O_sdram_clk     ,
-            O_sdram_cke    => O_sdram_cke     ,
-            O_sdram_cs_n   => O_sdram_cs_n    ,
-            O_sdram_cas_n  => O_sdram_cas_n   ,
-            O_sdram_ras_n  => O_sdram_ras_n   ,
-            O_sdram_wen_n  => O_sdram_wen_n   ,
-            IO_sdram_dq    => IO_sdram_dq     ,
-            O_sdram_addr   => O_sdram_addr    ,
-            O_sdram_ba     => O_sdram_ba      ,
-            O_sdram_dqm    => O_sdram_dqm     ,
+        CLOCKSPEED  => 96000000,
+        T_CAS_EXTRA => 1,
 
-            led            => monitor_leds,
+        -- SDRAM geometry
+        LANEBITS    => 2,   -- number of byte lanes bits, if 0 don't connect sdram_DQM_o
+        BANKBITS    => 2,   -- number of bits, if none set to 0 and don't connect sdram_BS_o
+        ROWBITS     => 11,
+        COLBITS     => 8,
 
-            FLASH_CS       => flash_cs,
-            FLASH_SI       => flash_si,
-            FLASH_CK       => flash_ck,
-            FLASH_SO       => flash_so
-        );
+        -- SDRAM speed
+        trp             => 15 ns,    -- precharge
+        trcd            => 15 ns,    -- active to read/write
+        trc             => 60 ns,    -- active to active time
+        trfsh           => 1.8 us,   -- the refresh control signal will be blocked if it occurs more frequently than this
+        trfc            => 63 ns     -- refresh cycle time
+    )
+    port map (
+
+        CLK_96          => clock_96,
+        CLK_96_P        => clock_96_p,
+        CLK_48          => clock_48,
+
+        rst_n           => powerup_reset_n,
+
+        -- signals to/from core/bootstrapper
+        em_c2m_i        => i_em_boot2m,
+        em_m2c_o        => i_em_m2boot,
+
+        O_sdram_clk     => O_sdram_clk,
+        O_sdram_cke     => O_sdram_cke,
+        O_sdram_cs_n    => O_sdram_cs_n,
+        O_sdram_cas_n   => O_sdram_cas_n,
+        O_sdram_ras_n   => O_sdram_ras_n,
+        O_sdram_wen_n   => O_sdram_wen_n,
+        IO_sdram_dq     => IO_sdram_dq,
+        O_sdram_addr    => O_sdram_addr,
+        O_sdram_ba      => O_sdram_ba,
+        O_sdram_dqm     => O_sdram_dqm
+    );
 
     --------------------------------------------------------
     -- 1MHz Bus LEDs
@@ -1215,6 +1261,6 @@ begin
         end if;
     end process;
 
-    gpio <= psg_strobe & mixer_strobe & spdif_load & toggle;
+    --gpio <= psg_strobe & mixer_strobe & spdif_load & toggle;
 
 end architecture;
