@@ -75,7 +75,7 @@ entity bbc_micro_de0 is
         IncludeMonitor         : boolean := true; -- So we see the normal status LEDs
         IncludeCoPro6502       : boolean := true;
         IncludeSoftLEDs        : boolean := true;
-        IncludeI2SAudio        : boolean := false;
+        IncludeI2SAudio        : boolean := true;
 
         MinVolume              : integer := 0;  -- -60dB
         DefaultVolume          : integer := 10; -- -30dB
@@ -132,86 +132,22 @@ entity bbc_micro_de0 is
         audiol_o        :  out   std_logic;
         audior_o        :  out   std_logic;
 
+        -- I2S Audio
+        i2s_bclk        : out   std_logic;
+        i2s_lrclk       : out   std_logic;
+        i2s_din         : out   std_logic;
+
         -- SPI Flash (for ROM data)
         flash_cs        : out   std_logic;     -- Active low FLASH chip select
         flash_si        : out   std_logic;     -- Serial output to FLASH chip SI pin
         flash_ck        : out   std_logic;     -- FLASH clock
-        flash_so        : in    std_logic;     -- Serial input from FLASH chip SO pin
-
-        debug_flash_cs  : out   std_logic;     -- Active low FLASH chip select
-        debug_flash_si  : out   std_logic;     -- Serial output to FLASH chip SI pin
-        debug_flash_ck  : out   std_logic;     -- FLASH clock
-        debug_flash_so  : out   std_logic      -- Serial input from FLASH chip SO pin
+        flash_so        : in    std_logic     -- Serial input from FLASH chip SO pin
 
         );
 end entity;
 
 architecture rtl of bbc_micro_de0 is
 
-    --------------------------------------------------------
-    -- FPGA Primitive Components
-    --------------------------------------------------------
-
-    component rPLL
-        generic (
-            FCLKIN: in string := "100.0";
-            DEVICE: in string := "GW1N-4";
-            DYN_IDIV_SEL: in string := "false";
-            IDIV_SEL: in integer := 0;
-            DYN_FBDIV_SEL: in string := "false";
-            FBDIV_SEL: in integer := 0;
-            DYN_ODIV_SEL: in string := "false";
-            ODIV_SEL: in integer := 8;
-            PSDA_SEL: in string := "0000";
-            DYN_DA_EN: in string := "false";
-            DUTYDA_SEL: in string := "1000";
-            CLKOUT_FT_DIR: in bit := '1';
-            CLKOUTP_FT_DIR: in bit := '1';
-            CLKOUT_DLY_STEP: in integer := 0;
-            CLKOUTP_DLY_STEP: in integer := 0;
-            CLKOUTD3_SRC: in string := "CLKOUT";
-            CLKFB_SEL: in string := "internal";
-            CLKOUT_BYPASS: in string := "false";
-            CLKOUTP_BYPASS: in string := "false";
-            CLKOUTD_BYPASS: in string := "false";
-            CLKOUTD_SRC: in string := "CLKOUT";
-            DYN_SDIV_SEL: in integer := 2
-        );
-        port (
-            CLKOUT: out std_logic;
-            LOCK: out std_logic;
-            CLKOUTP: out std_logic;
-            CLKOUTD: out std_logic;
-            CLKOUTD3: out std_logic;
-            RESET: in std_logic;
-            RESET_P: in std_logic;
-            CLKIN: in std_logic;
-            CLKFB: in std_logic;
-            FBDSEL: in std_logic_vector(5 downto 0);
-            IDSEL: in std_logic_vector(5 downto 0);
-            ODSEL: in std_logic_vector(5 downto 0);
-            PSDA: in std_logic_vector(3 downto 0);
-            DUTYDA: in std_logic_vector(3 downto 0);
-            FDLY: in std_logic_vector(3 downto 0)
-        );
-    end component;
-
-    component CLKDIV
-        generic (
-            DIV_MODE : string := "2";
-            GSREN: in string := "false"
-        );
-        port (
-            CLKOUT: out std_logic;
-            HCLKIN: in std_logic;
-            RESETN: in std_logic;
-            CALIB: in std_logic
-        );
-    end component;
-
-
-
-  
 
     --------------------------------------------------------
     -- Functions
@@ -269,6 +205,8 @@ architecture rtl of bbc_micro_de0 is
     signal dac_r_in        : std_logic_vector(9 downto 0);
     signal audio_l         : std_logic_vector(15 downto 0);
     signal audio_r         : std_logic_vector(15 downto 0);
+    signal audio_l_i2sj    : std_logic_vector(23 downto 0);
+    signal audio_r_i2sj    : std_logic_vector(23 downto 0);
     signal audiol          : std_logic;
     signal audior          : std_logic;
     signal volume          : unsigned(4 downto 0) := to_unsigned(DefaultVolume, 5);
@@ -284,12 +222,7 @@ architecture rtl of bbc_micro_de0 is
     signal m5k_audio_r     : signed(17 downto 0);
     signal m5k_strobe      : std_logic;
     signal mixer_strobe    : std_logic;
-    signal mixer_spdif     : std_logic;
-
-    ---test output toggled by the mixer_strobe (system clock domain)
-    -- for comparison with spdif_load
-    signal toggle          : std_logic := '0';
-
+    signal i2s_clk         : std_logic := '0';
 
     signal config_counter  : std_logic_vector(21 downto 0);
     signal config_last     : std_logic;
@@ -324,7 +257,6 @@ architecture rtl of bbc_micro_de0 is
     signal i_VGA_DE        : std_logic;
     signal i_VGA_CLKEN     : std_logic;
     signal i_VGA_MHZ12     : std_logic;
-    signal vid_debug       : std_logic;
 
     -- CPU tracing
     signal trace_data      :   std_logic_vector(7 downto 0);
@@ -362,9 +294,6 @@ architecture rtl of bbc_micro_de0 is
     signal r2_vid_chroma    : unsigned(4 downto 0);
     signal i_clk_chroma_x4  : std_logic;
 
-    signal pll1_lock       : std_logic;
-    signal pll2_lock       : std_logic;
-
     -- 1MHz Bus
     signal ext_1mhz_clk    : std_logic; -- the system clock
     signal ext_1mhz_clken  : std_logic; -- a 1MHz strobe, valid for one system clock cycle
@@ -381,25 +310,14 @@ architecture rtl of bbc_micro_de0 is
     -- Test
     signal test            : std_logic_vector(7 downto 0);
 
-    -- debug flash extras
-    signal i_flash_cs : std_logic;
-    signal i_flash_ck : std_logic;
-    signal i_flash_si : std_logic;
+    -- debug keyboard
 
+    signal dbg_keyboard_state : std_logic_vector(5 downto 0);
 
 begin
 
 audiol_o <= audiol;
 audior_o <= audior;
-
-debug_flash_so <= flash_so;
-debug_flash_ck <= i_flash_ck;
-debug_flash_cs <= i_flash_cs;
-debug_flash_si <= i_flash_si;
-
-flash_ck <= i_flash_ck;
-flash_cs <= i_flash_cs;
-flash_si <= i_flash_si;
 
 
     --------------------------------------------------------
@@ -519,7 +437,7 @@ flash_si <= i_flash_si;
             ext_1mhz_nmi_n  => open,
             hdmi_aspect    => open,
             hdmi_audio_en  => open,
-            vid_debug      => vid_debug,
+            vid_debug      => '0',
             tmds_r         => open,
             tmds_g         => open,
             tmds_b         => open,
@@ -529,13 +447,13 @@ flash_si <= i_flash_si;
             trace_sync     => trace_sync,
             trace_rstn     => trace_rstn,
             trace_phi2     => trace_phi2,
-            test           => open
+            test           => open,
+            dbg_keyboard_state => dbg_keyboard_state
         );
 
     vid_mode <= "0000"; -- DB: force 15KHz mode
 
     keyb_dip       <= "00000011";
-    vid_debug      <= '0';
 
     --------------------------------------------------------
     -- Clock Generation
@@ -627,6 +545,7 @@ flash_si <= i_flash_si;
     begin
         if rising_edge(clock_48) then
             if powerup_reset_n = '0' then
+--                hdmi_audio_en <= '1';
                 config_counter <= (others => '0');
             elsif btn2_n = '0' then
                 config_counter <= (others => '1');
@@ -720,6 +639,7 @@ flash_si <= i_flash_si;
 
     gen_no_resampler: if not IncludeMixerResampler generate
 
+--        audio_spdif  <= m5k_spdif;
         audio_l      <= audio_l_legacy;
         audio_r      <= audio_r_legacy;
 --        hdmi_audio_l <= audio_r_legacy;
@@ -761,6 +681,53 @@ flash_si <= i_flash_si;
             dac_o => audior
         );
 
+    --------------------------------------------------------
+    -- I2S Audio Using On-Board PT8211 DAC
+    --------------------------------------------------------
+    gen_i2s : if IncludeI2SAudio generate
+    begin
+
+
+	    --TODO: DB: make a cheap and jittery 2.304M clock - the TDA1543A requires 24 bits even though it's 16 bit
+	    --TODO: DB: this will have a lot of jitter on each bit but should be solid on each word - test THD at output
+	    p_i2s_clk_gen:process(clock_96)
+	    constant div : natural := 6;
+	    constant num : natural := 125;
+	    variable r_acc : unsigned(7 downto 0) := (others => '0');
+	    begin
+	        if rising_edge(clock_96) then
+	            r_acc := r_acc + div;
+	            if r_acc >= num then
+	                r_acc := r_acc - num;
+	                i2s_clk <= not i2s_clk;
+	            end if;
+	        end if;
+	    end process;
+
+        audio_l_i2sj <= audio_l(15) & audio_l(15) & audio_l(15) & audio_l(15) & audio_l(15) & audio_l(15) & audio_l(15) & audio_l(15) & audio_l;
+        audio_r_i2sj <= audio_r(15) & audio_r(15) & audio_r(15) & audio_r(15) & audio_r(15) & audio_r(15) & audio_r(15) & audio_r(15) & audio_r;
+
+        i2s : entity work.i2s_dom
+            generic map (
+                G_JAPANESE => true
+            )
+            port map (
+                clock      => i2s_clk,
+                reset_n    => powerup_reset_n,
+                audio_l    => audio_l_i2sj,
+                audio_r    => audio_r_i2sj,
+                i2s_lrclk  => i2s_lrclk,
+                i2s_bclk   => i2s_bclk,
+                i2s_din    => i2s_din,
+                pa_en      => open
+                );
+    end generate;
+
+    not_gen_i2s : if not IncludeI2SAudio generate
+        i2s_lrclk  <= 'Z';
+        i2s_bclk   <= 'Z';
+        i2s_din    <= 'Z';
+    end generate;
     --------------------------------------------------------
     -- SDRAM Memory Controller
     --------------------------------------------------------
@@ -805,9 +772,9 @@ flash_si <= i_flash_si;
 
             led            => monitor_leds,
 
-            FLASH_CS       => i_flash_cs,
-            FLASH_SI       => i_flash_si,
-            FLASH_CK       => i_flash_ck,
+            FLASH_CS       => flash_cs,
+            FLASH_SI       => flash_si,
+            FLASH_CK       => flash_ck,
             FLASH_SO       => flash_so
         );
 
@@ -904,8 +871,10 @@ flash_si <= i_flash_si;
 
 --    NotGenLEDS: if not IncludeSoftLEDs generate
 --
-    led(5 downto 0) <= monitor_leds xor "111111" when IncludeMonitor else normal_leds;
-    led(6) <= btn1_n;
+    led(5 downto 0) <= monitor_leds xor "111111" when IncludeMonitor and mem_ready='0' 
+                       else dbg_keyboard_state;
+                        --else normal_leds;
+    led(6) <= mem_ready;
     led(7) <= btn2_n;
 
 

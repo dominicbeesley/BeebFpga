@@ -293,7 +293,12 @@ begin
 
                     when protocol_error =>
                         -- Sit in this state until the next reset
+                        state <= enabled;
+                        r_led_ctr <= (others => '0');
 
+                    when others =>
+                        state <= enabled;
+                        r_led_ctr <= (others => '0');
                 end case;
             end if;
         end if;
