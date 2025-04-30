@@ -946,7 +946,7 @@ begin
                 clk_sample_i        => clock_27,
                 clk_dac_px_i        => clock_81,
                 clk_dac_i           => clock_405,
-                sample_i            => unsigned(i_VGA_r),
+                sample_i            => unsigned(not i_VGA_r),
                 bitstream_o         => vga_r
                 );
         e_vidg:entity work.dac1_oser
@@ -955,7 +955,7 @@ begin
                 clk_sample_i        => clock_27,
                 clk_dac_px_i        => clock_81,
                 clk_dac_i           => clock_405,
-                sample_i            => unsigned(i_VGA_g),
+                sample_i            => unsigned(not i_VGA_g),
                 bitstream_o         => vga_g
                 );
         e_vidb:entity work.dac1_oser
@@ -964,7 +964,7 @@ begin
                 clk_sample_i        => clock_27,
                 clk_dac_px_i        => clock_81,
                 clk_dac_i           => clock_405,
-                sample_i            => unsigned(i_VGA_b),
+                sample_i            => unsigned(not i_VGA_b),
                 bitstream_o         => vga_b
                 );
 
