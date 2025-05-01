@@ -3,6 +3,9 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 entity dac1_oser is
+    generic (
+        G_PEDESTAL : boolean := false
+        );
     port (
         rst_i             : in     std_logic;
         clk_sample_i      : in     std_logic; -- 27 MHz
@@ -14,6 +17,15 @@ entity dac1_oser is
 end dac1_oser;
 
 architecture rtl of dac1_oser is
+
+    FUNCTION PATLEN return natural is
+    begin
+        if G_PEDESTAL then 
+            return 30;
+        else
+            return 15;
+        end if;
+    end function;
 
    COMPONENT OSER10
       GENERIC (GSREN:string:="false";
@@ -38,26 +50,49 @@ architecture rtl of dac1_oser is
    END COMPONENT;
 
    function PAT(i:unsigned) return std_logic_vector is
-       variable R : std_logic_vector(14 downto 0);
+       variable R : std_logic_vector(PATLEN-1 downto 0);
    begin
-       case to_integer(i) is
-           when  1 => R := "000000010000000";
-           when  2 => R := "000000011000000";
-           when  3 => R := "000000111000000";
-           when  4 => R := "000000111100000";
-           when  5 => R := "000001111100000";
-           when  6 => R := "000001111110000";
-           when  7 => R := "000011111110000";
-           when  8 => R := "000011111111000";
-           when  9 => R := "000111111111000";
-           when 10 => R := "000111111111100";
-           when 11 => R := "001111111111100";
-           when 12 => R := "001111111111110";
-           when 13 => R := "011111111111110";
-           when 14 => R := "011111111111111";
-           when 15 => R := "111111111111111";
-           when others => R := "000000000000000";
-      end case;
+        if G_PEDESTAL then
+            case to_integer(i) is
+                when  1 =>     R := "000001111100000000001111100000";
+                when  2 =>     R := "000001111100000000001111110000";
+                when  3 =>     R := "000001111110000000001111110000";
+                when  4 =>     R := "000011111110000000001111110000";
+                when  5 =>     R := "000011111110000000011111110000";
+                when  6 =>     R := "000011111110000000011111111000";
+                when  7 =>     R := "000011111111000000011111111000";
+                when  8 =>     R := "000111111111000000011111111000";
+
+                when  9 =>     R := "000111111111000000111111111000";
+                when 10 =>     R := "000111111111100000111111111000";
+                when 11 =>     R := "000111111111100000111111111100";
+                when 12 =>     R := "001111111111100000111111111100";
+                when 13 =>     R := "001111111111100001111111111100";
+                when 14 =>     R := "001111111111100001111111111110";
+                when 15 =>     R := "001111111111110001111111111110";
+
+                when others => R := "000000111100000000001111100000";
+            end case;
+        else            
+            case to_integer(i) is
+                when  1 => R := "000000010000000";
+                when  2 => R := "000000011000000";
+                when  3 => R := "000000111000000";
+                when  4 => R := "000000111100000";
+                when  5 => R := "000001111100000";
+                when  6 => R := "000001111110000";
+                when  7 => R := "000011111110000";
+                when  8 => R := "000011111111000";
+                when  9 => R := "000111111111000";
+                when 10 => R := "000111111111100";
+                when 11 => R := "001111111111100";
+                when 12 => R := "001111111111110";
+                when 13 => R := "011111111111110";
+                when 14 => R := "011111111111111";
+                when 15 => R := "111111111111111";
+                when others => R := "000000000000000";
+            end case;
+        end if;
       return R;
    end function;
 
@@ -65,7 +100,7 @@ architecture rtl of dac1_oser is
    signal r_pat1      : std_logic_vector(9 downto 0);
    signal r_pat2      : std_logic_vector(9 downto 0);
    signal r_pat       : std_logic_vector(9 downto 0);
-   signal r_pattern   : std_logic_vector(14 downto 0);
+   signal r_pattern   : std_logic_vector(PATLEN-1 downto 0);
    signal count       : unsigned(1 downto 0);
 
 begin
@@ -83,9 +118,15 @@ begin
     begin
         if rising_edge(clk_dac_px_i) then
             if count = 2 then
-                r_pat0 <= r_pattern(9 downto 0);
-                r_pat1 <= r_pattern(4 downto 0) & r_pattern(14 downto 10);
-                r_pat2 <= r_pattern(14 downto 5);
+                if G_PEDESTAL then
+                    r_pat0 <= r_pattern(9 downto 0);
+                    r_pat1 <= r_pattern(19 downto 10);
+                    r_pat2 <= r_pattern(29 downto 20);
+                else
+                    r_pat0 <= r_pattern(9 downto 0);
+                    r_pat1 <= r_pattern(4 downto 0) & r_pattern(14 downto 10);
+                    r_pat2 <= r_pattern(14 downto 5);
+                end if;
                 count <= (others => '0');
             else
                 count <= count + 1;
