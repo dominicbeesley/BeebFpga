@@ -111,6 +111,8 @@ signal r_pal_swich : std_logic := '0';
 
 signal i_clk_chroma_x4 : std_logic;
 
+constant G_CALC_BITS : natural := G_INBITS + 9; -- enough room to multiply up by constants below
+
 begin
 
    car_ry_o <= r_car_ry;
@@ -198,19 +200,17 @@ begin
       if rising_edge(clk_i) then
          if r_burst = '1' then
             if G_PAL then
-               r_base_by <= to_signed(-2, r_base_by'length);
+               r_base_by <= to_signed(-3, r_base_by'length);
             else
                r_base_by <= to_signed(-6, r_base_by'length);
             end if;
          else
-            r_base_by <= to_signed(to_integer(
-               shift_right(
-                  (to_signed(to_integer(r_i), 10 + G_INBITS+1) * (-37))
-               +  (to_signed(to_integer(g_i), 10 + G_INBITS+1) * (-73))
-               +  (to_signed(to_integer(b_i), 10 + G_INBITS+1) * (111))
-               , 8)),
-               r_base_by'length
-               );
+            r_base_by <= 
+               to_signed(
+                  to_integer(r_i) * (-37)
+               +  to_integer(g_i) * (-73)
+               +  to_integer(b_i) * (111)
+               , G_CALC_BITS)(G_CALC_BITS-1 downto G_CALC_BITS-G_OUTBITS);
          end if;
       end if;
    end process;
@@ -220,19 +220,17 @@ begin
       if rising_edge(clk_i) then
          if r_burst = '1' then
             if G_PAL then
-               r_base_ry <= to_signed(2, r_base_ry'length);
+               r_base_ry <= to_signed(3, r_base_ry'length);
             else
                r_base_ry <= to_signed(0, r_base_ry'length);
             end if;
          else
-            r_base_ry <= to_signed(to_integer(
-               shift_right(
-                  (to_signed(to_integer(r_i), 10 + G_INBITS+1) * (157))
-               +  (to_signed(to_integer(g_i), 10 + G_INBITS+1) * (-132))
-               +  (to_signed(to_integer(b_i), 10 + G_INBITS+1) * (-25))
-               , 8)),
-               r_base_ry'length
-               );
+            r_base_ry <= 
+               to_signed(
+                  to_integer(r_i) * (157)
+               +  to_integer(g_i) * (-132)
+               +  to_integer(b_i) * (-25)
+               , G_CALC_BITS)(G_CALC_BITS-1 downto G_CALC_BITS-G_OUTBITS);
          end if;
       end if;
    end process;
