@@ -301,7 +301,8 @@ function VOLUME_FN(log : in natural) return natural is
 
     constant C_VID_SAMPLE_SIZE  : natural := 5;
 
-    signal i_clk_dac        : std_logic;
+    signal clock_360        : std_logic;
+    signal clock_72         : std_logic;
 
     signal i_chroma_s       : signed(4 downto 0);
     signal r_mono           : unsigned(4 downto 0);
@@ -847,11 +848,23 @@ begin
     -- 1 bit video
     --------------------------------------------------------
     
-    e_pll2: entity work.pll2v
+    e_pll2: entity work.pll2_oserx2
     port map (
-        clkout => i_clk_dac,
-        clkin => sys_clk
+        clkout      => clock_360,
+        clkin       => clock_48
     );
+
+    clkdiv5 : CLKDIV
+        generic map (
+            DIV_MODE => "5",            -- Divide by 5
+            GSREN => "false"
+        )
+        port map (
+            RESETN => hard_reset_n,
+            HCLKIN => clock_360,
+            CLKOUT => clock_72,         -- 27MHz HDMI Pixel Clock
+            CALIB  => '1'
+        );
 
 
     vid_cs_o <= not (i_VGA_hs xor i_VGA_vs); 
@@ -895,20 +908,15 @@ begin
 
     end process;
 
-    e_chrom:entity work.dac_1bit
-    generic map (
-        G_SAMPLE_SIZE       => 5,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
-    )
+    e_chroma_dac:entity work.dac1_oserx2
     port map (
-        rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_dac,
-
-        sample              => r2_vid_chroma,
-        
-        bitstream           => vid_chr_o
-    );
+        rst_i             => not hard_reset_n,
+        clk_sample_i      => clock_48,
+        clk_dac_px_i      => clock_72,
+        clk_dac_i         => clock_360,
+        sample_i          => r2_vid_chroma(4 downto 1),
+        bitstream_o       => vid_chr_o
+   );
     
 
     p_mono:process(clock_48)
@@ -927,20 +935,15 @@ begin
     end process;
 
 
-    e_mono:entity work.dac_1bit
-    generic map (
-        G_SAMPLE_SIZE       => 5,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
-    )
+    e_mono_dac:entity work.dac1_oserx2
     port map (
-        rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_dac,
-
-        sample              => r2_mono,
-        
-        bitstream           => vid_mono_o
-    );
+        rst_i             => not hard_reset_n,
+        clk_sample_i      => clock_48,
+        clk_dac_px_i      => clock_72,
+        clk_dac_i         => clock_360,
+        sample_i          => r2_mono(4 downto 1),
+        bitstream_o       => vid_mono_o
+   );
 
    
 end architecture;
