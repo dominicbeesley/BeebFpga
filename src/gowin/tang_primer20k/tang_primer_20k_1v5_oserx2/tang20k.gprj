@@ -64,14 +64,13 @@
         <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/gowin/src/R65Cx2.vhd" type="file.vhdl" enable="1"/>
         <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/gowin/src/music5000_ram_dual_port.vhd" type="file.vhdl" enable="1"/>
         <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/gowin/src/saa5050_rom_dual_port.vhd" type="file.vhdl" enable="1"/>
-        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/gowin/tang_primer20k/src/gowin_rpll/pll2v.vhd" type="file.vhdl" enable="1"/>
-        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/gowin/tang_primer20k/src/i2s_dom.vhd" type="file.vhdl" enable="1"/>
         <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/gowin/tang_primer20k/src/mem_tang_primer_20k.vhd" type="file.vhdl" enable="1"/>
         <File path="src/bbc_micro_tang20k_1bitvid_pal.vhd" type="file.vhdl" enable="1"/>
         <File path="src/board_config_pack.vhd" type="file.vhdl" enable="1"/>
         <File path="src/dac1_oserx2.vhd" type="file.vhdl" enable="1"/>
-        <File path="src/gowin_rpll/gowin_rpll.vhd" type="file.vhdl" enable="1"/>
         <File path="src/bbc_micro_tang20k_1bitvid_pal.cst" type="file.cst" enable="1"/>
         <File path="src/bbc_micro_tang20k_1bitvid_pal.sdc" type="file.sdc" enable="1"/>
+        <File path="src/gowin_rpll2/gowin_rpll.vhd" type="file.vhdl" enable="1"/>
+        <File path="src/gowin_rpll/gowin_rpll.vhd" type="file.vhdl" enable="1"/>
     </FileList>
 </Project>

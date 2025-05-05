@@ -47,6 +47,7 @@ use ieee.numeric_std.all;
 library work;
 use work.board_config_pack.all;
 use work.sample_rate_converter_pkg.all;
+use work.common.all;
 
 entity bbc_micro_tang20k is
     generic (
@@ -106,6 +107,8 @@ entity bbc_micro_tang20k is
         vid_chr_o       : out   std_logic;
 
         vid_vs_o        : out   std_logic; -- just for scope sync
+
+        debug_clk_chroma_o  : out std_logic;
 
         -- SPI Flash (for ROM data)
         flash_cs        : out   std_logic;     -- Active low FLASH chip select
@@ -308,7 +311,12 @@ function VOLUME_FN(log : in natural) return natural is
     signal r_mono           : unsigned(4 downto 0);
     signal r2_mono          : unsigned(4 downto 0);
     signal r2_vid_chroma    : unsigned(4 downto 0);
-    signal i_clk_chroma_x4  : std_logic;
+    signal i_clk_chroma_x4_jitter  : std_logic;
+
+    signal i_clk_chroma_x4      : std_logic;
+    signal i_clk_chroma_x4_dac  : std_logic;
+    signal i_clk_chroma_x4_px   : std_logic;
+    signal i_clk_chroma_x4_dac_d3 : std_logic;
 
     -- 1MHz Bus
     signal ext_1mhz_clk    : std_logic; -- the system clock
@@ -871,15 +879,64 @@ begin
     vid_vs_o <= i_VGA_vs;
 
 
+      p_car_gen:process(clock_48)
+      constant div : natural := 709379;
+      constant num : natural := 1920000;    -- PAL * 4 with 25Hz offset (17.734475)
+      variable r_acc : unsigned(numbits(num) downto 0) := (others => '0');
+      begin
+         if rising_edge(clock_48) then
+            r_acc := r_acc + div;
+            if r_acc >= num then
+               r_acc := r_acc - num;
+               i_clk_chroma_x4_jitter <= '1';
+            else
+               i_clk_chroma_x4_jitter <= '0';
+            end if;
+         end if;
+      end process;
+
+
+
+    e_pal_pll: entity work.pll_pal_test
+    port map (
+        clkout => i_clk_chroma_x4_dac,
+        clkoutd3 => i_clk_chroma_x4_dac_d3,
+        clkin  => i_clk_chroma_x4_jitter
+    );
+
+    e_clkdiv_cdac_5 : CLKDIV
+        generic map (
+            DIV_MODE => "5",
+            GSREN => "false"
+        )
+        port map (
+            RESETN => powerup_reset_n,
+            HCLKIN => i_clk_chroma_x4_dac,
+            CLKOUT => i_clk_chroma_x4_px,
+            CALIB  => '1'
+        );
+
+    e_clkdiv_cdac_3 : CLKDIV
+        generic map (
+            DIV_MODE => "5",
+            GSREN => "false"
+        )
+        port map (
+            RESETN => powerup_reset_n,
+            HCLKIN => i_clk_chroma_x4_dac_d3,
+            CLKOUT => i_clk_chroma_x4,
+            CALIB  => '1'
+        );
+
     e_chroma_gen:entity work.dossy_chroma
     generic map (
-        G_USE_EXT_x4_CLK  => false
+        G_USE_EXT_x4_CLK  => true
 
         )
     port map (
 
       clk_i             => clock_48,
-      clk_chroma_x4_i   => '1',
+      clk_chroma_x4_i   => i_clk_chroma_x4,
 
       r_i               => unsigned(i_VGA_R),
       g_i               => unsigned(i_VGA_G),
@@ -889,7 +946,7 @@ begin
       vs_i              => i_VGA_vs,
 
       chroma_o          => i_chroma_s,
-      clk_chroma_x4_o   => i_clk_chroma_x4,
+      clk_chroma_x4_o   => debug_clk_chroma_o,
 
 
       car_ry_o          => open,
@@ -911,9 +968,9 @@ begin
     e_chroma_dac:entity work.dac1_oserx2
     port map (
         rst_i             => not hard_reset_n,
-        clk_sample_i      => clock_48,
-        clk_dac_px_i      => clock_72,
-        clk_dac_i         => clock_360,
+        clk_sample_i      => i_clk_chroma_x4,
+        clk_dac_px_i      => i_clk_chroma_x4_px,
+        clk_dac_i         => i_clk_chroma_x4_dac,
         sample_i          => r2_vid_chroma(4 downto 1),
         bitstream_o       => vid_chr_o
    );

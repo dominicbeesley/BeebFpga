@@ -1,11 +1,12 @@
 create_clock -name sys_clk -period 37.037 -waveform {0 18.518} [get_ports {sys_clk}] -add
-create_clock -name chroma_clock -period 56.387347 -waveform {0 28.19367} [get_pins {e_chroma_gen/i_clk_chroma_x4_s0/Q}]
 
 // Create clock definitions for each of the derived clocks
 create_generated_clock -name clock_48 -source [get_ports {sys_clk}] -master_clock sys_clk -divide_by 27 -multiply_by 48 [get_nets {clock_48}]
 create_generated_clock -name clock_96 -source [get_ports {sys_clk}] -master_clock sys_clk -divide_by 27 -multiply_by 96 [get_nets {clock_96}]
 create_generated_clock -name clock_360 -source [get_nets {clock_48}] -master_clock clock_48 -divide_by 2 -multiply_by 15 [get_nets {clock_360}]
 create_generated_clock -name clock_72 -source [get_nets {clock_48}] -master_clock clock_48 -divide_by 2 -multiply_by 3 [get_nets {clock_72}]
+
+create_generated_clock -name i_clk_chroma_x4_jitter -source [get_nets {clock_48}] -master_clock clock_48 -divide_by 1920000 -multiply_by 709379 [get_nets {i_clk_chroma_x4_jitter}]
 
 //create_generated_clock -name i2s_clk -source [get_nets {clock_96}] -master_clock clock_96 -divide_by 125 -multiply_by 8 [get_pins {gen_i2s.p_i2s_clk_gen.r_acc_0_s0/Q }]
 

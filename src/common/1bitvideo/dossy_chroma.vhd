@@ -58,7 +58,7 @@ entity dossy_chroma is
       G_USE_EXT_x4_CLK  : boolean := false;
       G_PAL             : boolean := true;
       G_CAR_DIV         : natural := 709379;
-      G_CAR_NUM         : natural := 1920000    -- PAL * 4 with 25Hz offset
+      G_CAR_NUM         : natural := 1920000    -- PAL * 4 with 25Hz offset (17.734475)
 
 --      G_PAL     : boolean := true;
 --      G_CAR_DIV : natural := 1135;
