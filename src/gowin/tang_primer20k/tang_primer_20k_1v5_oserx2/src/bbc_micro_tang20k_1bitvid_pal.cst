@@ -31,9 +31,6 @@ IO_PORT "vid_chr_o" IO_TYPE=LVCMOS15 PULL_MODE=NONE;
 IO_LOC "vid_mono_o" E9;
 IO_PORT "vid_mono_o" IO_TYPE=LVCMOS15 PULL_MODE=NONE;
 
-IO_LOC "debug_clk_chroma_o" E8;
-IO_PORT "debug_clk_chroma_o" IO_TYPE=LVCMOS15 PULL_MODE=NONE;
-
 
 IO_LOC "vid_cs_o" C13;
 IO_PORT "vid_cs_o" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=24;

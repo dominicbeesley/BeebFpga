@@ -108,8 +108,6 @@ entity bbc_micro_tang20k is
 
         vid_vs_o        : out   std_logic; -- just for scope sync
 
-        debug_clk_chroma_o  : out std_logic;
-
         -- SPI Flash (for ROM data)
         flash_cs        : out   std_logic;     -- Active low FLASH chip select
         flash_si        : out   std_logic;     -- Serial output to FLASH chip SI pin
@@ -946,8 +944,6 @@ begin
       vs_i              => i_VGA_vs,
 
       chroma_o          => i_chroma_s,
-      clk_chroma_x4_o   => debug_clk_chroma_o,
-
 
       car_ry_o          => open,
       pal_sw_o          => open,
@@ -965,7 +961,8 @@ begin
 
     end process;
 
-    e_chroma_dac:entity work.dac1_oserx2
+    -- regular 30 bits per sample 
+    e_chroma_dac:entity work.dac1_oser
     port map (
         rst_i             => not hard_reset_n,
         clk_sample_i      => i_clk_chroma_x4,
@@ -991,7 +988,7 @@ begin
         end if;
     end process;
 
-
+    -- split x2 15 bits per sample
     e_mono_dac:entity work.dac1_oserx2
     port map (
         rst_i             => not hard_reset_n,

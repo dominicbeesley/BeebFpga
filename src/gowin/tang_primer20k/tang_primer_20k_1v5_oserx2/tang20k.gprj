@@ -68,6 +68,7 @@
         <File path="src/bbc_micro_tang20k_1bitvid_pal.vhd" type="file.vhdl" enable="1"/>
         <File path="src/board_config_pack.vhd" type="file.vhdl" enable="1"/>
         <File path="src/dac1_oserx2.vhd" type="file.vhdl" enable="1"/>
+        <File path="src/dac1_oser.vhd" type="file.vhdl" enable="1"/>
         <File path="src/bbc_micro_tang20k_1bitvid_pal.cst" type="file.cst" enable="1"/>
         <File path="src/bbc_micro_tang20k_1bitvid_pal.sdc" type="file.sdc" enable="1"/>
         <File path="src/gowin_rpll2/gowin_rpll.vhd" type="file.vhdl" enable="1"/>
