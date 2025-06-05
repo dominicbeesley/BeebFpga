@@ -47,6 +47,7 @@ use ieee.numeric_std.all;
 library work;
 use work.board_config_pack.all;
 use work.sample_rate_converter_pkg.all;
+use work.common.all;
 
 entity bbc_micro_tang20k is
     generic (
@@ -82,9 +83,7 @@ entity bbc_micro_tang20k is
         sys_clk         : in    std_logic;
         btn1_n          : in    std_logic;     -- Toggle Master / Beeb modes
         btn2_n          : in    std_logic;     -- Toggle HDMI / DVI modes
-        btn3_n          : in    std_logic;
         led             : out   std_logic_vector (5 downto 0);
-        ws2812_din      : out   std_logic;
 
         -- Keyboard / Mouse
         ps2_clk         : inout std_logic;
@@ -102,20 +101,12 @@ entity bbc_micro_tang20k is
         uart_rx         : in    std_logic;
         uart_tx         : out   std_logic;
 
-
         -- VGA
-        vid_r_o         : out   std_logic;
-        vid_b_o         : out   std_logic;
-        vid_g_o         : out   std_logic;
         vid_cs_o        : out   std_logic;
-        vid_chr_o        : out   std_logic;
+        vid_mono_o      : out   std_logic;
+        vid_chr_o       : out   std_logic;
 
-        -- I2S Audio
-        i2s_bclk        : out   std_logic;
-        i2s_lrclk       : out   std_logic;
-        i2s_din         : out   std_logic;
-        pa_en           : out   std_logic;
-
+        vid_vs_o        : out   std_logic; -- just for scope sync
 
         -- SPI Flash (for ROM data)
         flash_cs        : out   std_logic;     -- Active low FLASH chip select
@@ -310,28 +301,20 @@ function VOLUME_FN(log : in natural) return natural is
     -- 1 bit DAC
 
     constant C_VID_SAMPLE_SIZE  : natural := 5;
-    constant C_PEDESTAL         : natural := 8;
 
-    signal r0_vid_r         : unsigned(3 downto 0);
-    signal r0_vid_g         : unsigned(3 downto 0);
-    signal r0_vid_b         : unsigned(3 downto 0);
-
-    signal r_vid_r          : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
-    signal r_vid_g          : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
-    signal r_vid_b          : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
-
-    signal r2_vid_r         : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
-    signal r2_vid_g         : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
-    signal r2_vid_b         : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
-
-    signal r_vid_req        : std_logic;
-    signal r_vid_ack        : std_logic;
-
-    signal i_clk_dac        : std_logic;
+    signal clock_360        : std_logic;
+    signal clock_72         : std_logic;
 
     signal i_chroma_s       : signed(4 downto 0);
+    signal r_mono           : unsigned(4 downto 0);
+    signal r2_mono          : unsigned(4 downto 0);
     signal r2_vid_chroma    : unsigned(4 downto 0);
-    signal i_clk_chroma_x4  : std_logic;
+    signal i_clk_chroma_x4_jitter  : std_logic;
+
+    signal i_clk_chroma_x4      : std_logic;
+    signal i_clk_chroma_x4_dac  : std_logic;
+    signal i_clk_chroma_x4_px   : std_logic;
+    signal i_clk_chroma_x4_dac_d3 : std_logic;
 
     -- 1MHz Bus
     signal ext_1mhz_clk    : std_logic; -- the system clock
@@ -739,49 +722,6 @@ begin
 
 
     --------------------------------------------------------
-    -- I2S Audio Using On-Board PT8211 DAC
-    --------------------------------------------------------
-    gen_i2s : if IncludeI2SAudio generate
-    begin
-
-
-	    --TODO: DB: make a cheap and jittery 3.072M clock
-	    --TODO: DB: this will have a lot of jitter on each bit but should be solid on each word - test THD at output
-	    p_i2s_clk_gen:process(clock_96)
-	    constant div : natural := 8;
-	    constant num : natural := 125;
-	    variable r_acc : unsigned(7 downto 0) := (others => '0');
-	    begin
-	        if rising_edge(clock_96) then
-	            r_acc := r_acc + div;
-	            if r_acc >= num then
-	                r_acc := r_acc - num;
-	                i2s_clk <= not i2s_clk;
-	            end if;
-	        end if;
-	    end process;
-
-        i2s : entity work.i2s_dom
-            port map (
-                clock      => i2s_clk,
-                reset_n    => powerup_reset_n,
-                audio_l    => audio_l,
-                audio_r    => audio_r,
-                i2s_lrclk  => i2s_lrclk,
-                i2s_bclk   => i2s_bclk,
-                i2s_din    => i2s_din,
-                pa_en      => pa_en
-                );
-    end generate;
-
-    not_gen_i2s : if not IncludeI2SAudio generate
-        i2s_lrclk  <= 'Z';
-        i2s_bclk   <= 'Z';
-        i2s_din    <= 'Z';
-        pa_en      <= '0';
-    end generate;
-
-    --------------------------------------------------------
     -- ??? Memory Controller
     --------------------------------------------------------
 
@@ -844,13 +784,6 @@ begin
 
     begin
 
-        -- This module is in Verilog and comes from MisteryNano
-        inst_ws2812 : entity work.ws2812
-            port map (
-                clk   => clock_48,
-                color => bit_reverse(ws2812_g & ws2812_r & ws2812_b),
-                data  => ws2812_din
-                );
 
         led <= soft_leds(5 downto 0) xor "111111" when soft_leds(7 downto 6) = "10" else
                --test(5 downto 0)      xor "111111" when soft_leds(7 downto 6) = "11" else
@@ -914,7 +847,6 @@ begin
     NotGenLEDS: if not IncludeSoftLEDs generate
 
         led <= monitor_leds when IncludeMonitor else normal_leds;
-        ws2812_din <= '0';
 
     end generate;
 
@@ -922,114 +854,87 @@ begin
     -- 1 bit video
     --------------------------------------------------------
     
-    e_pll2: entity work.pll2v
+    e_pll2: entity work.pll2_oserx2
     port map (
-        clkout => i_clk_dac,
-        clkin => sys_clk
+        clkout      => clock_360,
+        clkin       => clock_48
     );
+
+    clkdiv5 : CLKDIV
+        generic map (
+            DIV_MODE => "5",            -- Divide by 5
+            GSREN => "false"
+        )
+        port map (
+            RESETN => hard_reset_n,
+            HCLKIN => clock_360,
+            CLKOUT => clock_72,         -- 27MHz HDMI Pixel Clock
+            CALIB  => '1'
+        );
 
 
     vid_cs_o <= not (i_VGA_hs xor i_VGA_vs); 
-
-    p_v1:process(clock_48)
-        function U(S : in std_logic) return unsigned is
-        variable r : unsigned(0 downto 0);
-        begin
-            r(0) := S;
-            return r;
-        end function U;
-    begin
-        if rising_edge(clock_48) then
-            --if i_VGA_CLKEN = '1' then
-
-                r0_vid_r <= unsigned(i_VGA_R);
-                r0_vid_g <= unsigned(i_VGA_G);
-                r0_vid_b <= unsigned(i_VGA_B);
-
-                -- note inverted for analogue circuits
-                r_vid_r <= ("0" & r0_vid_r) + to_unsigned(C_PEDESTAL, r_vid_r'length); -- + resize(U(i_rnd_r), r_vid_r'length);                
-                r_vid_g <= ("0" & r0_vid_g) + to_unsigned(C_PEDESTAL, r_vid_g'length); -- + resize(U(i_rnd_r), r_vid_r'length);                
-                r_vid_b <= ("0" & r0_vid_b) + to_unsigned(C_PEDESTAL, r_vid_b'length); -- + resize(U(i_rnd_r), r_vid_r'length);                
+    vid_vs_o <= i_VGA_vs;
 
 
-                if r_vid_req = '1' then
-                    r_vid_req <= '0';
-                else
-                    r_vid_req <= '1';
-                end if;
-            --end if;
-        end if;
-    end process;
-
-    p_v2:process(i_clk_dac)
-    variable v_vr2 : std_logic;
-    begin
-        if rising_edge(i_clk_dac) then
-            if v_vr2 /= r_vid_ack then
-                r2_vid_r <= r_vid_r;
-                r2_vid_g <= r_vid_g;
-                r2_vid_b <= r_vid_b;
-                r_vid_ack <= v_vr2;
+      p_car_gen:process(clock_48)
+      constant div : natural := 709379;
+      constant num : natural := 1920000;    -- PAL * 4 with 25Hz offset (17.734475)
+      variable r_acc : unsigned(numbits(num) downto 0) := (others => '0');
+      begin
+         if rising_edge(clock_48) then
+            r_acc := r_acc + div;
+            if r_acc >= num then
+               r_acc := r_acc - num;
+               i_clk_chroma_x4_jitter <= '1';
+            else
+               i_clk_chroma_x4_jitter <= '0';
             end if;
-            v_vr2 := r_vid_req;
-        end if;
-    end process;
+         end if;
+      end process;
 
-    e_vidr:entity work.dac_1bit
-    generic map (
-        G_SAMPLE_SIZE       => C_VID_SAMPLE_SIZE,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
-    )
+
+
+    e_pal_pll: entity work.pll_pal_test
     port map (
-        rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_dac,
-
-        sample              => not r2_vid_r,
-        
-        bitstream           => vid_r_o
+        clkout => i_clk_chroma_x4_dac,
+        clkoutd3 => i_clk_chroma_x4_dac_d3,
+        clkin  => i_clk_chroma_x4_jitter
     );
 
-    e_vidg:entity work.dac_1bit
-    generic map (
-        G_SAMPLE_SIZE       => C_VID_SAMPLE_SIZE,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
-    )
-    port map (
-        rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_dac,
+    e_clkdiv_cdac_5 : CLKDIV
+        generic map (
+            DIV_MODE => "5",
+            GSREN => "false"
+        )
+        port map (
+            RESETN => powerup_reset_n,
+            HCLKIN => i_clk_chroma_x4_dac,
+            CLKOUT => i_clk_chroma_x4_px,
+            CALIB  => '1'
+        );
 
-        sample              => not r2_vid_g,
-        
-        bitstream           => vid_g_o
-    );
-
-    e_vidb:entity work.dac_1bit
-    generic map (
-        G_SAMPLE_SIZE       => C_VID_SAMPLE_SIZE,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
-    )
-    port map (
-        rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_dac,
-
-        sample              => not r2_vid_b,
-        
-        bitstream           => vid_b_o
-    );
-
+    e_clkdiv_cdac_3 : CLKDIV
+        generic map (
+            DIV_MODE => "5",
+            GSREN => "false"
+        )
+        port map (
+            RESETN => powerup_reset_n,
+            HCLKIN => i_clk_chroma_x4_dac_d3,
+            CLKOUT => i_clk_chroma_x4,
+            CALIB  => '1'
+        );
 
     e_chroma_gen:entity work.dossy_chroma
     generic map (
-        G_USE_EXT_x4_CLK  => false
+        G_USE_EXT_x4_CLK  => true
 
         )
     port map (
 
       clk_i             => clock_48,
-      clk_chroma_x4_i   => '1',
+      clk_chroma_x4_i   => i_clk_chroma_x4,
 
       r_i               => unsigned(i_VGA_R),
       g_i               => unsigned(i_VGA_G),
@@ -1039,8 +944,6 @@ begin
       vs_i              => i_VGA_vs,
 
       chroma_o          => i_chroma_s,
-      clk_chroma_x4_o   => i_clk_chroma_x4,
-
 
       car_ry_o          => open,
       pal_sw_o          => open,
@@ -1058,20 +961,43 @@ begin
 
     end process;
 
-    e_chrom:entity work.dac_1bit
-    generic map (
-        G_SAMPLE_SIZE       => 5,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
-    )
+    -- regular 30 bits per sample 
+    e_chroma_dac:entity work.dac1_oser
     port map (
-        rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_dac,
+        rst_i             => not hard_reset_n,
+        clk_sample_i      => i_clk_chroma_x4,
+        clk_dac_px_i      => i_clk_chroma_x4_px,
+        clk_dac_i         => i_clk_chroma_x4_dac,
+        sample_i          => r2_vid_chroma(4 downto 1),
+        bitstream_o       => vid_chr_o
+   );
+    
 
-        sample              => r2_vid_chroma,
-        
-        bitstream           => vid_chr_o
-    );
+    p_mono:process(clock_48)
+    constant G_INBITS : natural := 4;
+    constant G_OUTBITS : natural := 5;
+    begin
+        if rising_edge(clock_48) then
+            r_mono <= to_unsigned(
+                  to_integer(unsigned(i_VGA_R)) * 77
+               +  to_integer(unsigned(i_VGA_G)) * 150
+               +  to_integer(unsigned(i_VGA_B)) * 28
+               , G_INBITS + 8)(G_INBITS + 8 - 1 downto G_INBITS + 8 - G_OUTBITS);
+
+            r2_mono <= not r_mono;
+        end if;
+    end process;
+
+    -- split x2 15 bits per sample
+    e_mono_dac:entity work.dac1_oserx2
+    port map (
+        rst_i             => not hard_reset_n,
+        clk_sample_i      => clock_48,
+        clk_dac_px_i      => clock_72,
+        clk_dac_i         => clock_360,
+        sample_i          => r2_mono(4 downto 1),
+        bitstream_o       => vid_mono_o
+   );
 
    
 end architecture;

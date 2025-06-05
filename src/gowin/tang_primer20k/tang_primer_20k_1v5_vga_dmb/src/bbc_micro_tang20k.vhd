@@ -69,6 +69,7 @@ entity bbc_micro_tang20k is
         IncludeCoPro6502       : boolean := false;
         IncludeSoftLEDs        : boolean := true;
         IncludeI2SAudio        : boolean := true;
+        IncludeVGADAC          : boolean := true;
 
         MinVolume              : integer := 0;  -- -60dB
         DefaultVolume          : integer := 10; -- -30dB
@@ -82,9 +83,7 @@ entity bbc_micro_tang20k is
         sys_clk         : in    std_logic;
         btn1_n          : in    std_logic;     -- Toggle Master / Beeb modes
         btn2_n          : in    std_logic;     -- Toggle HDMI / DVI modes
-        btn3_n          : in    std_logic;
         led             : out   std_logic_vector (5 downto 0);
-        ws2812_din      : out   std_logic;
 
         -- Keyboard / Mouse
         ps2_clk         : inout std_logic;
@@ -104,25 +103,18 @@ entity bbc_micro_tang20k is
 
 
         -- VGA
-        vid_r_o         : out   std_logic;
-        vid_b_o         : out   std_logic;
-        vid_g_o         : out   std_logic;
-        vid_cs_o        : out   std_logic;
-        vid_chr_o        : out   std_logic;
+        vga_r           : out   std_logic;
+        vga_b           : out   std_logic;
+        vga_g           : out   std_logic;
+        vga_hs          : out   std_logic;
+        vga_vs          : out   std_logic;
 
-        -- I2S Audio
-        i2s_bclk        : out   std_logic;
-        i2s_lrclk       : out   std_logic;
-        i2s_din         : out   std_logic;
-        pa_en           : out   std_logic;
-
-
+     
         -- SPI Flash (for ROM data)
         flash_cs        : out   std_logic;     -- Active low FLASH chip select
         flash_si        : out   std_logic;     -- Serial output to FLASH chip SI pin
         flash_ck        : out   std_logic;     -- FLASH clock
-        flash_so        : in    std_logic     -- Serial input from FLASH chip SO pin
-
+        flash_so        : in    std_logic      -- Serial input from FLASH chip SO pin
         );
 end entity;
 
@@ -191,6 +183,31 @@ architecture rtl of bbc_micro_tang20k is
         );
     end component;
 
+    component OSER10
+        generic (
+            GSREN : string := "false";
+            LSREN : string := "true"
+        );
+        port (
+            Q : out std_logic;
+            D0 : in std_logic;
+            D1 : in std_logic;
+            D2 : in std_logic;
+            D3 : in std_logic;
+            D4 : in std_logic;
+            D5 : in std_logic;
+            D6 : in std_logic;
+            D7 : in std_logic;
+            D8 : in std_logic;
+            D9 : in std_logic;
+            FCLK : in std_logic;
+            PCLK : in std_logic;
+            RESET : in std_logic
+        );
+    end component;
+
+  
+
     --------------------------------------------------------
     -- Functions
     --------------------------------------------------------
@@ -236,9 +253,13 @@ function VOLUME_FN(log : in natural) return natural is
     --------------------------------------------------------
 
     signal clock_24        : std_logic;
+    signal clock_27        : std_logic;
     signal clock_48        : std_logic;
     signal clock_96        : std_logic;
     signal clock_96_p      : std_logic;
+    signal clock_135       : std_logic;
+    signal clock_81        : std_logic;
+    signal clock_405       : std_logic;
     signal mem_ready       : std_logic;
 
     -- Audio
@@ -291,11 +312,17 @@ function VOLUME_FN(log : in natural) return natural is
     signal i_VGA_R         : std_logic_vector(3 downto 0);
     signal i_VGA_G         : std_logic_vector(3 downto 0);
     signal i_VGA_B         : std_logic_vector(3 downto 0);
-    signal i_VGA_HS        : std_logic;
-    signal i_VGA_VS        : std_logic;
-    signal i_VGA_DE        : std_logic;
-    signal i_VGA_CLKEN     : std_logic;
-    signal i_VGA_MHZ12     : std_logic;
+
+    -- HDMI
+    signal hdmi_aspect     : std_logic_vector(1 downto 0);
+    signal hdmi_audio_en   : std_logic := '1';
+    signal hdmi_audio_src  : std_logic := '1'; -- Sample Rate Convert HDMI Audio
+    signal hdmi_audio_l    : std_logic_vector(15 downto 0);
+    signal hdmi_audio_r    : std_logic_vector(15 downto 0);
+    signal vid_debug       : std_logic;
+    signal tmds_r          : std_logic_vector(9 downto 0);
+    signal tmds_g          : std_logic_vector(9 downto 0);
+    signal tmds_b          : std_logic_vector(9 downto 0);
 
     -- CPU tracing
     signal trace_data      :   std_logic_vector(7 downto 0);
@@ -307,31 +334,13 @@ function VOLUME_FN(log : in natural) return natural is
     -- Mem Controller Monior LEDs
     signal monitor_leds    :   std_logic_vector(5 downto 0);
 
-    -- 1 bit DAC
+    -- HDMI PLL synchronization
+    signal hsync_ref : std_logic;
+    signal hsync_del : std_logic_vector(4 downto 0) := (others => '0');
 
-    constant C_VID_SAMPLE_SIZE  : natural := 5;
-    constant C_PEDESTAL         : natural := 8;
-
-    signal r0_vid_r         : unsigned(3 downto 0);
-    signal r0_vid_g         : unsigned(3 downto 0);
-    signal r0_vid_b         : unsigned(3 downto 0);
-
-    signal r_vid_r          : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
-    signal r_vid_g          : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
-    signal r_vid_b          : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
-
-    signal r2_vid_r         : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
-    signal r2_vid_g         : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
-    signal r2_vid_b         : unsigned(C_VID_SAMPLE_SIZE-1 downto 0);
-
-    signal r_vid_req        : std_logic;
-    signal r_vid_ack        : std_logic;
-
-    signal i_clk_dac        : std_logic;
-
-    signal i_chroma_s       : signed(4 downto 0);
-    signal r2_vid_chroma    : unsigned(4 downto 0);
-    signal i_clk_chroma_x4  : std_logic;
+    signal clkdiv_reset_n  : std_logic := '0';
+    signal pll1_lock       : std_logic;
+    signal pll2_lock       : std_logic;
 
     -- 1MHz Bus
     signal ext_1mhz_clk    : std_logic; -- the system clock
@@ -379,7 +388,7 @@ begin
             UseAlanDCore       => IncludeMaster
         )
         port map (
-            clock_27       => '1',
+            clock_27       => clock_27,
             clock_32       => '0',                 -- Unused now in the core
             clock_48       => clock_48,
             clock_96       => clock_96,
@@ -394,16 +403,13 @@ begin
             video_red      => i_VGA_R,
             video_green    => i_VGA_G,
             video_blue     => i_VGA_B,
-            video_hsync    => i_VGA_hs,
-            video_vsync    => i_VGA_vs,
-            video_disen    => i_VGA_de,
-            video_clken    => i_VGA_CLKEN,
-            video_mhz12    => i_VGA_MHZ12,
+            video_hsync    => vga_hs,
+            video_vsync    => vga_vs,
             audio_l         => audio_l_legacy,
             audio_r         => audio_r_legacy,
-            hdmi_audio_ext  => open,
-            hdmi_audio_l    => open,
-            hdmi_audio_r    => open,
+            hdmi_audio_ext  => '1',
+            hdmi_audio_l    => hdmi_audio_l,
+            hdmi_audio_r    => hdmi_audio_r,
             psg_audio       => psg_audio,
             psg_strobe      => psg_strobe,
             sid_audio       => sid_audio,
@@ -477,7 +483,7 @@ begin
             tmds_r         => open,
             tmds_g         => open,
             tmds_b         => open,
-            hsync_ref      => open,
+            hsync_ref       => hsync_ref,
             trace_data     => trace_data,
             trace_r_nw     => trace_r_nw,
             trace_sync     => trace_sync,
@@ -486,8 +492,10 @@ begin
             test            => test
         );
 
-    vid_mode       <= "0000";-- DB: force 15KHz mode
-    keyb_dip       <= "00000011";
+    vid_mode       <= "0001";
+    keyb_dip       <= "00000000";
+    hdmi_aspect    <= "00";
+    vid_debug      <= '0';
 
     --------------------------------------------------------
     -- Clock Generation
@@ -512,7 +520,7 @@ begin
             CLKOUTP  => clock_96_p,     -- 96MHz clock for SDRAM, phase shifted 180 degrees
             CLKOUTD  => clock_48,       -- 48MHz main clock
             CLKOUTD3 => open,
-            LOCK     => open,
+            LOCK     => pll1_lock,
             RESET    => '0',
             RESET_P  => '0',
             CLKFB    => '0',
@@ -524,6 +532,56 @@ begin
             FDLY     => (others => '0')
         );
 
+    pll2 : rPLL
+        generic map (
+            FCLKIN => "27",
+            DEVICE => "GW2A-18C",
+            IDIV_SEL => 0,
+            FBDIV_SEL => 14,
+            ODIV_SEL => 2
+        )
+        port map (
+            CLKIN    => sys_clk,
+            CLKOUT   => clock_405,      -- 405MHz VGA 1-bit DAC clock
+            CLKOUTP  => open,
+            CLKOUTD  => open,
+            CLKOUTD3 => clock_135,      -- 135MHz HDMI Serial Clock (5x the HDMI Pixel Clock)
+            LOCK     => pll2_lock,
+            RESET    => '0',
+            RESET_P  => '0',
+            CLKFB    => '0',
+            FBDSEL   => (others => '0'),
+            IDSEL    => (others => '0'),
+            ODSEL    => (others => '0'),
+            PSDA     => (others => '0'),
+            DUTYDA   => (others => '0'),
+            FDLY     => (others => '0')
+        );
+
+    clkdiv_dac : CLKDIV
+        generic map (
+            DIV_MODE => "5",            -- Divide by 5
+            GSREN => "false"
+        )
+        port map (
+            RESETN => clkdiv_reset_n,
+            HCLKIN => clock_405,
+            CLKOUT => clock_81,
+            CALIB  => '1'
+        );
+
+
+    clkdiv5 : CLKDIV
+        generic map (
+            DIV_MODE => "5",            -- Divide by 5
+            GSREN => "false"
+        )
+        port map (
+            RESETN => clkdiv_reset_n,
+            HCLKIN => clock_135,
+            CLKOUT => clock_27,         -- 27MHz HDMI Pixel Clock
+            CALIB  => '1'
+        );
 
     clkdiv4 : CLKDIV
         generic map (
@@ -537,6 +595,17 @@ begin
             CALIB  => '1'
         );
 
+    process(clock_135)
+    begin
+        if rising_edge(clock_135) then
+            -- Synchronise the core hsync signal and delay it a bit
+            hsync_del <= hsync_ref & hsync_del(hsync_del'left downto 1);
+            -- Release clkdiv reset shortly after the first falling edge of hsync_ref
+            if pll1_lock = '1' and pll2_lock = '1' and hsync_del(1) = '0' and hsync_del(0) = '1' then
+                clkdiv_reset_n <= '1';
+            end if;
+        end if;
+    end process;
 
 
     --------------------------------------------------------
@@ -736,50 +805,8 @@ begin
             dac_o => audior
             );
 
-
-
     --------------------------------------------------------
-    -- I2S Audio Using On-Board PT8211 DAC
-    --------------------------------------------------------
-    gen_i2s : if IncludeI2SAudio generate
-    begin
-
-
-	    --TODO: DB: make a cheap and jittery 3.072M clock
-	    --TODO: DB: this will have a lot of jitter on each bit but should be solid on each word - test THD at output
-	    p_i2s_clk_gen:process(clock_96)
-	    constant div : natural := 8;
-	    constant num : natural := 125;
-	    variable r_acc : unsigned(7 downto 0) := (others => '0');
-	    begin
-	        if rising_edge(clock_96) then
-	            r_acc := r_acc + div;
-	            if r_acc >= num then
-	                r_acc := r_acc - num;
-	                i2s_clk <= not i2s_clk;
-	            end if;
-	        end if;
-	    end process;
-
-        i2s : entity work.i2s_dom
-            port map (
-                clock      => i2s_clk,
-                reset_n    => powerup_reset_n,
-                audio_l    => audio_l,
-                audio_r    => audio_r,
-                i2s_lrclk  => i2s_lrclk,
-                i2s_bclk   => i2s_bclk,
-                i2s_din    => i2s_din,
-                pa_en      => pa_en
-                );
-    end generate;
-
-    not_gen_i2s : if not IncludeI2SAudio generate
-        i2s_lrclk  <= 'Z';
-        i2s_bclk   <= 'Z';
-        i2s_din    <= 'Z';
-        pa_en      <= '0';
-    end generate;
+ 
 
     --------------------------------------------------------
     -- ??? Memory Controller
@@ -844,13 +871,6 @@ begin
 
     begin
 
-        -- This module is in Verilog and comes from MisteryNano
-        inst_ws2812 : entity work.ws2812
-            port map (
-                clk   => clock_48,
-                color => bit_reverse(ws2812_g & ws2812_r & ws2812_b),
-                data  => ws2812_din
-                );
 
         led <= soft_leds(5 downto 0) xor "111111" when soft_leds(7 downto 6) = "10" else
                --test(5 downto 0)      xor "111111" when soft_leds(7 downto 6) = "11" else
@@ -914,164 +934,54 @@ begin
     NotGenLEDS: if not IncludeSoftLEDs generate
 
         led <= monitor_leds when IncludeMonitor else normal_leds;
-        ws2812_din <= '0';
 
     end generate;
 
+    vga_1bit_dac : if IncludeVGADAC generate
+    begin
+
+        e_vidr:entity work.dac1_oser
+            port map (
+                rst_i               => not hard_reset_n,
+                clk_sample_i        => clock_27,
+                clk_dac_px_i        => clock_81,
+                clk_dac_i           => clock_405,
+                sample_i            => unsigned(not i_VGA_r),
+                bitstream_o         => vga_r
+                );
+        e_vidg:entity work.dac1_oser
+            port map (
+                rst_i               => not hard_reset_n,
+                clk_sample_i        => clock_27,
+                clk_dac_px_i        => clock_81,
+                clk_dac_i           => clock_405,
+                sample_i            => unsigned(not i_VGA_g),
+                bitstream_o         => vga_g
+                );
+        e_vidb:entity work.dac1_oser
+            port map (
+                rst_i               => not hard_reset_n,
+                clk_sample_i        => clock_27,
+                clk_dac_px_i        => clock_81,
+                clk_dac_i           => clock_405,
+                sample_i            => unsigned(not i_VGA_b),
+                bitstream_o         => vga_b
+                );
+
+    end generate;
+
+
+
+   not_vga_1bit_dac : if not IncludeVGADAC generate
+
+       vga_r <= i_VGA_R(i_VGA_R'high);
+       vga_g <= i_VGA_G(i_VGA_G'high);
+       vga_b <= i_VGA_B(i_VGA_B'high);
+
+   end generate;
+
     --------------------------------------------------------
-    -- 1 bit video
+    -- Output Assignments
     --------------------------------------------------------
-    
-    e_pll2: entity work.pll2v
-    port map (
-        clkout => i_clk_dac,
-        clkin => sys_clk
-    );
-
-
-    vid_cs_o <= not (i_VGA_hs xor i_VGA_vs); 
-
-    p_v1:process(clock_48)
-        function U(S : in std_logic) return unsigned is
-        variable r : unsigned(0 downto 0);
-        begin
-            r(0) := S;
-            return r;
-        end function U;
-    begin
-        if rising_edge(clock_48) then
-            --if i_VGA_CLKEN = '1' then
-
-                r0_vid_r <= unsigned(i_VGA_R);
-                r0_vid_g <= unsigned(i_VGA_G);
-                r0_vid_b <= unsigned(i_VGA_B);
-
-                -- note inverted for analogue circuits
-                r_vid_r <= ("0" & r0_vid_r) + to_unsigned(C_PEDESTAL, r_vid_r'length); -- + resize(U(i_rnd_r), r_vid_r'length);                
-                r_vid_g <= ("0" & r0_vid_g) + to_unsigned(C_PEDESTAL, r_vid_g'length); -- + resize(U(i_rnd_r), r_vid_r'length);                
-                r_vid_b <= ("0" & r0_vid_b) + to_unsigned(C_PEDESTAL, r_vid_b'length); -- + resize(U(i_rnd_r), r_vid_r'length);                
-
-
-                if r_vid_req = '1' then
-                    r_vid_req <= '0';
-                else
-                    r_vid_req <= '1';
-                end if;
-            --end if;
-        end if;
-    end process;
-
-    p_v2:process(i_clk_dac)
-    variable v_vr2 : std_logic;
-    begin
-        if rising_edge(i_clk_dac) then
-            if v_vr2 /= r_vid_ack then
-                r2_vid_r <= r_vid_r;
-                r2_vid_g <= r_vid_g;
-                r2_vid_b <= r_vid_b;
-                r_vid_ack <= v_vr2;
-            end if;
-            v_vr2 := r_vid_req;
-        end if;
-    end process;
-
-    e_vidr:entity work.dac_1bit
-    generic map (
-        G_SAMPLE_SIZE       => C_VID_SAMPLE_SIZE,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
-    )
-    port map (
-        rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_dac,
-
-        sample              => not r2_vid_r,
-        
-        bitstream           => vid_r_o
-    );
-
-    e_vidg:entity work.dac_1bit
-    generic map (
-        G_SAMPLE_SIZE       => C_VID_SAMPLE_SIZE,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
-    )
-    port map (
-        rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_dac,
-
-        sample              => not r2_vid_g,
-        
-        bitstream           => vid_g_o
-    );
-
-    e_vidb:entity work.dac_1bit
-    generic map (
-        G_SAMPLE_SIZE       => C_VID_SAMPLE_SIZE,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
-    )
-    port map (
-        rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_dac,
-
-        sample              => not r2_vid_b,
-        
-        bitstream           => vid_b_o
-    );
-
-
-    e_chroma_gen:entity work.dossy_chroma
-    generic map (
-        G_USE_EXT_x4_CLK  => false
-
-        )
-    port map (
-
-      clk_i             => clock_48,
-      clk_chroma_x4_i   => '1',
-
-      r_i               => unsigned(i_VGA_R),
-      g_i               => unsigned(i_VGA_G),
-      b_i               => unsigned(i_VGA_B),
-
-      hs_i              => i_VGA_hs,
-      vs_i              => i_VGA_vs,
-
-      chroma_o          => i_chroma_s,
-      clk_chroma_x4_o   => i_clk_chroma_x4,
-
-
-      car_ry_o          => open,
-      pal_sw_o          => open,
-      base_ry_o         => open
-   );
-
-
-    p_chrom_s2u:process(i_clk_chroma_x4)
-    begin
-        if rising_edge(i_clk_chroma_x4) then
-            
-            r2_vid_chroma <= to_unsigned(16+to_integer(i_chroma_s), 5);
-
-        end if;
-
-    end process;
-
-    e_chrom:entity work.dac_1bit
-    generic map (
-        G_SAMPLE_SIZE       => 5,
-        G_SYNC_DEPTH        => 1,
-        G_PWM               => FALSE
-    )
-    port map (
-        rst_i               => not hard_reset_n,
-        clk_dac             => i_clk_dac,
-
-        sample              => r2_vid_chroma,
-        
-        bitstream           => vid_chr_o
-    );
-
-   
+  
 end architecture;

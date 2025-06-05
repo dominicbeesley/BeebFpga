@@ -70,7 +70,7 @@ begin
     i2s_lrclk <= lr_ring(lr_ring'high);
     i2s_din <= shift_reg(shift_reg'high);
 
-    p_sh:process(clock)
+    p_sh:process(clock, reset_n)
 
     begin
         if reset_n = '0' then
