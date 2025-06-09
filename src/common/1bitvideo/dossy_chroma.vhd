@@ -52,6 +52,7 @@ entity dossy_chroma is
       G_INBITS          : natural := 4;
 
       G_OUTBITS         : natural := 5;
+      G_GAIN            : real := 1.0;
 
       G_CLOCKSPEED      : natural := 48000000;
 
@@ -207,9 +208,9 @@ begin
          else
             r_base_by <= 
                to_signed(
-                  to_integer(r_i) * (-37)
-               +  to_integer(g_i) * (-73)
-               +  to_integer(b_i) * (111)
+                  to_integer(r_i) * integer((-37) * G_GAIN)
+               +  to_integer(g_i) * integer((-73) * G_GAIN)
+               +  to_integer(b_i) * integer((111) * G_GAIN)
                , G_CALC_BITS)(G_CALC_BITS-1 downto G_CALC_BITS-G_OUTBITS);
          end if;
       end if;
@@ -227,9 +228,9 @@ begin
          else
             r_base_ry <= 
                to_signed(
-                  to_integer(r_i) * (157)
-               +  to_integer(g_i) * (-132)
-               +  to_integer(b_i) * (-25)
+                  to_integer(r_i) * integer((157 ) * G_GAIN)
+               +  to_integer(g_i) * integer((-132) * G_GAIN)
+               +  to_integer(b_i) * integer((-25 ) * G_GAIN)
                , G_CALC_BITS)(G_CALC_BITS-1 downto G_CALC_BITS-G_OUTBITS);
          end if;
       end if;
