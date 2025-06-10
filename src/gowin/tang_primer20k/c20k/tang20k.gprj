@@ -64,7 +64,7 @@
         <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/gowin/src/R65Cx2.vhd" type="file.vhdl" enable="1"/>
         <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/gowin/src/music5000_ram_dual_port.vhd" type="file.vhdl" enable="1"/>
         <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/gowin/src/saa5050_rom_dual_port.vhd" type="file.vhdl" enable="1"/>
-        <File path="C:/Users/Dominic/Documents/GitHub/BeebFpga_Dom/src/gowin/tang_primer20k/src/mem_tang_primer_20k.vhd" type="file.vhdl" enable="1"/>
+        <File path="src/mem_tang_primer_c20k.vhd" type="file.vhdl" enable="1"/>
         <File path="src/c20k.vhd" type="file.vhdl" enable="1"/>
         <File path="src/board_config_pack.vhd" type="file.vhdl" enable="1"/>
         <File path="src/dac1_oserx2.vhd" type="file.vhdl" enable="1"/>
@@ -73,5 +73,7 @@
         <File path="src/c20k.sdc" type="file.sdc" enable="1"/>
         <File path="src/gowin_rpll2/gowin_rpll.vhd" type="file.vhdl" enable="1"/>
         <File path="src/gowin_rpll/gowin_rpll.vhd" type="file.vhdl" enable="1"/>
+        <File path="C:/Users/Dominic/Documents/GitHub/blitter-vhdl-6502/src/hdl/modelC20K/shared/c20k_peripheral_mux_ctl.vhd" type="file.vhdl" enable="1"/>
+        <File path="C:\Users\Dominic\Documents\GitHub\blitter-vhdl-6502\src\hdl\library\bbc\bbc_slow_cyc.vhd" type="file.vhdl" enable="1"/>
     </FileList>
 </Project>
