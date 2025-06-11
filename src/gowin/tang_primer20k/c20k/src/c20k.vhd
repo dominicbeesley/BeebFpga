@@ -424,7 +424,7 @@ begin
     -- C20K bodge
     btn2_n <= '1';
 
-    i_SYS_A          <= x"FFEA";
+    i_SYS_A          <= x"FF" & "00" & monitor_leds;
     i_SYS_RnW        <= '1';
     i_sys_nRST       <= '1';
 
