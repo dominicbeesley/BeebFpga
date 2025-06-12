@@ -51,7 +51,7 @@ use work.common.all;
 
 entity bbc_micro_tang20k is
     generic (
-        IncludeMaster      : boolean := false; -- if both included, the CPU is the AlanD 65C02
+        IncludeMaster      : boolean := true; -- if both included, the CPU is the AlanD 65C02
         IncludeBeeb        : boolean := true; -- and btn1 can toggle between the ROM images
 
         IncludeAMXMouse    : boolean := false;
@@ -66,7 +66,7 @@ entity bbc_micro_tang20k is
         IncludeTrace       : boolean := false;
         IncludeHDMI        : boolean := true;
         IncludeMonitor     : boolean := true;
-        IncludeCoPro6502       : boolean := false;
+        IncludeCoPro6502       : boolean := true;
         IncludeSoftLEDs        : boolean := true;
         IncludeI2SAudio        : boolean := true;
 
@@ -74,8 +74,6 @@ entity bbc_micro_tang20k is
         DefaultVolume          : integer := 10; -- -30dB
         MaxVolume              : integer := 20; --   0dB
 
-        PRJ_ROOT           : string  := "../../../..";
-        MOS_NAME           : string  := "/roms/bbcb/os12_mmfs_basic.bit";
         SIM                : boolean := false
         );
     port (
@@ -830,12 +828,9 @@ begin
 
     e_mem: entity work.mem_tang_primer_c20k
         generic map (
-            SIM => SIM,
             IncludeMonitor => IncludeMonitor,
             IncludeMinimalBeeb => true,
-            IncludeMinimalMaster => true,
-            PRJ_ROOT => PRJ_ROOT,
-            MOS_NAME => MOS_NAME
+            IncludeMinimalMaster => false
         )
         port map (
             m128_mode      => m128_mode,

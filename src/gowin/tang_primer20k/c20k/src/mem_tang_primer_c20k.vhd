@@ -9,9 +9,6 @@ library work;
 
 entity mem_tang_primer_c20k is
     generic (
-        PRJ_ROOT             : string;
-        MOS_NAME             : string;
-        SIM                  : boolean;
         IncludeMonitor       : boolean := false;
         IncludeMinimalMaster : boolean := false;  -- Creates a build to test 4x16K ROM Images
         IncludeMinimalBeeb   : boolean := false   -- Creates a build to test 4x16K ROM Images
@@ -81,8 +78,8 @@ architecture rtl of mem_tang_primer_c20k is
     -- 1 -> 8 MMFS          ----- master not supported yet ---- 9 MMFS
     -- 2 -> F Ram Master    ----- master not supported yet ---- C Basic II
     -- 3 -> F Basic II      ----- master not supported yet ---- F Terminal
-    constant user_rom_map_beeb_minimal    : std_logic_vector(63 downto 0) := x"0000000000000DE4";
-    constant user_rom_map_master_minimal  : std_logic_vector(63 downto 0) := x"0000000000000DE4"; -- TODO: figure out a 3 rom master configuration
+    constant user_rom_map_beeb_minimal    : std_logic_vector(63 downto 0) := x"000000000000FE84";
+    constant user_rom_map_master_minimal  : std_logic_vector(63 downto 0) := x"000000000000FC94"; -- TODO: figure out a 3 rom master configuration
     constant user_rom_map_full            : std_logic_vector(63 downto 0) := x"FEDCBA9876543210";
     signal   user_rom_map                 : std_logic_vector(63 downto 0);
 
@@ -99,7 +96,7 @@ architecture rtl of mem_tang_primer_c20k is
     constant user_length_full             : std_logic_vector(23 downto 0) := x"040000";
 
     -- length of user data in FLASH = 48KB (3x 16K ROM) images
-    constant user_length_minimal          : std_logic_vector(23 downto 0) := x"00C000";
+    constant user_length_minimal          : std_logic_vector(23 downto 0) := x"010000";
 
     -- high when FLASH is being copied to SRAM, can be used by user as active high reset
     signal   i_bootstrap_busy  : std_logic;
