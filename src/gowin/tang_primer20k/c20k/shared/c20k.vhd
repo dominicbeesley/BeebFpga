@@ -49,7 +49,7 @@ use work.board_config_pack.all;
 use work.sample_rate_converter_pkg.all;
 use work.common.all;
 
-entity bbc_micro_tang20k is
+entity bbc_micro_c20k is
     generic (
         IncludeMaster      : boolean := true; -- if both included, the CPU is the AlanD 65C02
         IncludeBeeb        : boolean := true; -- and btn1 can toggle between the ROM images
@@ -64,7 +64,8 @@ entity bbc_micro_tang20k is
         IncludeICEDebugger     : boolean := G_CONFIG_DEBUGGER;
         IncludeVideoNuLA   : boolean := true;
         IncludeTrace       : boolean := false;
-        IncludeHDMI        : boolean := true;
+        IncludeHDMI        : boolean := G_CONFIG_HDMI;
+        IncludeBootStrap   : boolean := true;
         IncludeMonitor     : boolean := true;
         IncludeCoPro6502       : boolean := true;
         IncludeSoftLEDs        : boolean := true;
@@ -98,14 +99,18 @@ entity bbc_micro_tang20k is
         uart_rx         : in    std_logic;
         uart_tx         : out   std_logic;
 
+        -- HDMI
+        tmds_clk_p      : out   std_logic;
+        tmds_clk_n      : out   std_logic;
+        tmds_d_p        : out   std_logic_vector(2 downto 0);
+        tmds_d_n        : out   std_logic_vector(2 downto 0);
+
         -- VGA
-        vid_cs_o        : out   std_logic;
         vid_r_o         : out   std_logic;
         vid_g_o         : out   std_logic;
         vid_b_o         : out   std_logic;
         vid_chr_o       : out   std_logic;
 
-        vid_vs_o        : out   std_logic; -- just for scope sync
 
         -- SPI Flash (for ROM data)
         flash_cs        : out   std_logic;     -- Active low FLASH chip select
@@ -149,7 +154,7 @@ entity bbc_micro_tang20k is
         );
 end entity;
 
-architecture rtl of bbc_micro_tang20k is
+architecture rtl of bbc_micro_c20k is
 
     -- c20k bodge
     signal btn2_n : std_logic;
@@ -220,6 +225,37 @@ architecture rtl of bbc_micro_tang20k is
         );
     end component;
 
+    component OSER10
+        generic (
+            GSREN : string := "false";
+            LSREN : string := "true"
+        );
+        port (
+            Q : out std_logic;
+            D0 : in std_logic;
+            D1 : in std_logic;
+            D2 : in std_logic;
+            D3 : in std_logic;
+            D4 : in std_logic;
+            D5 : in std_logic;
+            D6 : in std_logic;
+            D7 : in std_logic;
+            D8 : in std_logic;
+            D9 : in std_logic;
+            FCLK : in std_logic;
+            PCLK : in std_logic;
+            RESET : in std_logic
+        );
+    end component;
+
+    component ELVDS_OBUF
+        port (
+            I : in std_logic;
+            O : out std_logic;
+            OB : out std_logic
+        );
+    end component;
+
     --------------------------------------------------------
     -- Functions
     --------------------------------------------------------
@@ -265,9 +301,11 @@ function VOLUME_FN(log : in natural) return natural is
     --------------------------------------------------------
 
     signal clock_24        : std_logic;
+    signal clock_27        : std_logic;
     signal clock_48        : std_logic;
     signal clock_96        : std_logic;
     signal clock_96_p      : std_logic;
+    signal clock_135       : std_logic;
     signal mem_ready       : std_logic;
 
     -- Audio
@@ -323,6 +361,16 @@ function VOLUME_FN(log : in natural) return natural is
     signal i_VGA_DE        : std_logic;
     signal i_VGA_CLKEN     : std_logic;
     signal i_VGA_MHZ12     : std_logic;
+-- HDMI
+    signal hdmi_aspect     : std_logic_vector(1 downto 0);
+    signal hdmi_audio_en   : std_logic := '1';
+    signal hdmi_audio_src  : std_logic := '1'; -- Sample Rate Convert HDMI Audio
+    signal hdmi_audio_l    : std_logic_vector(15 downto 0);
+    signal hdmi_audio_r    : std_logic_vector(15 downto 0);
+    signal vid_debug       : std_logic;
+    signal tmds_r          : std_logic_vector(9 downto 0);
+    signal tmds_g          : std_logic_vector(9 downto 0);
+    signal tmds_b          : std_logic_vector(9 downto 0);
 
     -- CPU tracing
     signal trace_data      :   std_logic_vector(7 downto 0);
@@ -334,7 +382,15 @@ function VOLUME_FN(log : in natural) return natural is
     -- Mem Controller Monior LEDs
     signal monitor_leds    :   std_logic_vector(5 downto 0);
 
-    -- 1 bit DAC
+ -- HDMI PLL synchronization
+    signal hsync_ref : std_logic;
+    signal hsync_del : std_logic_vector(4 downto 0) := (others => '0');
+
+    signal clkdiv_reset_n  : std_logic := '0';
+    signal pll1_lock       : std_logic;
+    signal pll2_lock       : std_logic;
+
+    -- 1 bit Video DACs - 15KHz
 
     constant C_VID_SAMPLE_SIZE  : natural := 5;
 
@@ -349,6 +405,10 @@ function VOLUME_FN(log : in natural) return natural is
     signal i_clk_chroma_x4_dac  : std_logic;
     signal i_clk_chroma_x4_px   : std_logic;
     signal i_clk_chroma_x4_dac_d3 : std_logic;
+
+	-- 1bit Video DACs - VGA
+    signal clock_81        : std_logic;
+    signal clock_405       : std_logic;
 
     -- 1MHz Bus
     signal ext_1mhz_clk    : std_logic; -- the system clock
@@ -416,6 +476,14 @@ function VOLUME_FN(log : in natural) return natural is
     signal ipo_j_spi_mosi   : std_logic;
     signal ipo_j_adc_nCS    : std_logic;
 
+    function B2S(b:boolean) return std_logic is
+    begin
+        if b then
+            return '1';
+        else
+            return '0';
+        end if;
+    end function;
 
 begin
 
@@ -433,7 +501,7 @@ begin
     ipo_j_spi_clk    <= '1';
     ipo_VID_HS       <= i_VGA_HS;
     ipo_VID_VS       <= i_VGA_VS;
-    ipo_VID_CS       <= not (i_VGA_hs xor i_VGA_vs);
+    ipo_VID_CS       <= (not (i_VGA_hs xor i_VGA_vs)) xor B2S(IncludeHDMI);
     ipo_j_spi_mosi   <= '1';
     ipo_j_adc_nCS    <= '1';
 
@@ -463,7 +531,7 @@ begin
             UseAlanDCore       => IncludeMaster
         )
         port map (
-            clock_27       => '1',
+            clock_27       => clock_27,
             clock_32       => '0',                 -- Unused now in the core
             clock_48       => clock_48,
             clock_96       => clock_96,
@@ -485,9 +553,9 @@ begin
             video_mhz12    => i_VGA_MHZ12,
             audio_l         => audio_l_legacy,
             audio_r         => audio_r_legacy,
-            hdmi_audio_ext  => open,
-            hdmi_audio_l    => open,
-            hdmi_audio_r    => open,
+            hdmi_audio_ext  => '1',
+            hdmi_audio_l    => hdmi_audio_l,
+            hdmi_audio_r    => hdmi_audio_r,
             psg_audio       => psg_audio,
             psg_strobe      => psg_strobe,
             sid_audio       => sid_audio,
@@ -555,13 +623,13 @@ begin
             ext_1mhz_do     => ext_1mhz_do,
             ext_1mhz_irq_n  => open,
             ext_1mhz_nmi_n  => open,
-            hdmi_aspect    => open,
-            hdmi_audio_en  => open,
-            vid_debug      => '0',
-            tmds_r         => open,
-            tmds_g         => open,
-            tmds_b         => open,
-            hsync_ref      => open,
+            hdmi_aspect    => hdmi_aspect,
+            hdmi_audio_en  => hdmi_audio_en,
+            vid_debug      => vid_debug,
+            tmds_r         => tmds_r,
+            tmds_g         => tmds_g,
+            tmds_b         => tmds_b,
+            hsync_ref       => hsync_ref,
             trace_data     => trace_data,
             trace_r_nw     => trace_r_nw,
             trace_sync     => trace_sync,
@@ -570,8 +638,10 @@ begin
             test            => test
         );
 
-    vid_mode       <= "0000";-- DB: force 15KHz mode
-    keyb_dip       <= "00000011";
+    vid_mode       <= "0001" when IncludeHDMI else "0000";
+    keyb_dip       <= "00000000";
+    hdmi_aspect    <= "00";
+    vid_debug      <= '0';
 
     --------------------------------------------------------
     -- Clock Generation
@@ -596,7 +666,33 @@ begin
             CLKOUTP  => clock_96_p,     -- 96MHz clock for SDRAM, phase shifted 180 degrees
             CLKOUTD  => clock_48,       -- 48MHz main clock
             CLKOUTD3 => open,
-            LOCK     => open,
+            LOCK     => pll1_lock,
+            RESET    => '0',
+            RESET_P  => '0',
+            CLKFB    => '0',
+            FBDSEL   => (others => '0'),
+            IDSEL    => (others => '0'),
+            ODSEL    => (others => '0'),
+            PSDA     => (others => '0'),
+            DUTYDA   => (others => '0'),
+            FDLY     => (others => '0')
+        );
+g_hdmi_clocks:if IncludeHDMI generate
+    pll2 : rPLL
+        generic map (
+            FCLKIN => "27",
+            DEVICE => "GW2A-18C",
+            IDIV_SEL => 0,
+            FBDIV_SEL => 14,
+            ODIV_SEL => 2
+        )
+        port map (
+            CLKIN    => sys_clk,
+            CLKOUT   => clock_405,      -- 405MHz VGA 1-bit DAC clock
+            CLKOUTP  => open,
+            CLKOUTD  => open,
+            CLKOUTD3 => clock_135,      -- 135MHz HDMI Serial Clock (5x the HDMI Pixel Clock)
+            LOCK     => pll2_lock,
             RESET    => '0',
             RESET_P  => '0',
             CLKFB    => '0',
@@ -608,6 +704,45 @@ begin
             FDLY     => (others => '0')
         );
 
+    clkdiv_dac : CLKDIV
+        generic map (
+            DIV_MODE => "5",            -- Divide by 5
+            GSREN => "false"
+        )
+        port map (
+            RESETN => clkdiv_reset_n,
+            HCLKIN => clock_405,
+            CLKOUT => clock_81,
+            CALIB  => '1'
+        );
+
+
+    clkdiv5 : CLKDIV
+        generic map (
+            DIV_MODE => "5",            -- Divide by 5
+            GSREN => "false"
+        )
+        port map (
+            RESETN => clkdiv_reset_n,
+            HCLKIN => clock_135,
+            CLKOUT => clock_27,         -- 27MHz HDMI Pixel Clock
+            CALIB  => '1'
+        );
+
+    process(clock_135)
+    begin
+        if rising_edge(clock_135) then
+            -- Synchronise the core hsync signal and delay it a bit
+            hsync_del <= hsync_ref & hsync_del(hsync_del'left downto 1);
+            -- Release clkdiv reset shortly after the first falling edge of hsync_ref
+            if pll1_lock = '1' and pll2_lock = '1' and hsync_del(1) = '0' and hsync_del(0) = '1' then
+                clkdiv_reset_n <= '1';
+            end if;
+        end if;
+    end process;
+
+
+end generate;
 
     clkdiv4 : CLKDIV
         generic map (
@@ -684,7 +819,7 @@ begin
     begin
         if rising_edge(clock_48) then
             if powerup_reset_n = '0' then
---                hdmi_audio_en <= '1';
+                hdmi_audio_en <= '1';
                 config_counter <= (others => '0');
             elsif btn2_n = '0' then
                 config_counter <= (others => '1');
@@ -692,7 +827,7 @@ begin
                 config_counter <= config_counter - 1;
             elsif config_last = '1' then
                 -- For now, keep HDMI/DVI mode on BTN2
---                hdmi_audio_en <= not hdmi_audio_en;
+                hdmi_audio_en <= not hdmi_audio_en;
             end if;
             config_last <= config_counter(config_counter'high);
             -- If SoftLEDs are included, these move to the 1MHz bus section
@@ -711,7 +846,7 @@ begin
                 m5k_filter_en <= not m5k_filter_en;
             end if;
             if config(5) = '1' then
---                hdmi_audio_src <= not hdmi_audio_src;
+                hdmi_audio_src <= not hdmi_audio_src;
             end if;
         end if;
     end process;
@@ -771,8 +906,8 @@ begin
 
         audio_l      <= std_logic_vector(mixer_l(19 downto 4));
         audio_r      <= std_logic_vector(mixer_r(19 downto 4));
---        hdmi_audio_l <= audio_l when hdmi_audio_src = '1' else audio_l_legacy;
---        hdmi_audio_r <= audio_r when hdmi_audio_src = '1' else audio_r_legacy;
+        hdmi_audio_l <= audio_l when hdmi_audio_src = '1' else audio_l_legacy;
+        hdmi_audio_r <= audio_r when hdmi_audio_src = '1' else audio_r_legacy;
 
     end generate;
 
@@ -781,8 +916,8 @@ begin
 --        audio_spdif  <= m5k_spdif;
         audio_l      <= audio_l_legacy;
         audio_r      <= audio_r_legacy;
---        hdmi_audio_l <= audio_r_legacy;
---        hdmi_audio_r <= audio_r_legacy;
+        hdmi_audio_l <= audio_r_legacy;
+        hdmi_audio_r <= audio_r_legacy;
 
     end generate;
 
@@ -820,6 +955,138 @@ begin
             dac_o => audior_o
             );
 
+    --------------------------------------------------------
+    -- HDMI Output
+    --------------------------------------------------------
+
+    --  Serialize the three 10-bit TMDS channels to three serialized 1-bit TMDS streams
+
+    hdmi : if (IncludeHDMI) generate
+        signal serialized_c : std_logic;
+        signal serialized_r : std_logic;
+        signal serialized_g : std_logic;
+        signal serialized_b : std_logic;
+    begin
+
+        ser_b : OSER10
+            generic map (
+                GSREN => "false",
+                LSREN => "true"
+            )
+            port map(
+                PCLK  => clock_27,
+                FCLK  => clock_135,
+                RESET => '0',
+                Q     => serialized_b,
+                D0    => tmds_b(0),
+                D1    => tmds_b(1),
+                D2    => tmds_b(2),
+                D3    => tmds_b(3),
+                D4    => tmds_b(4),
+                D5    => tmds_b(5),
+                D6    => tmds_b(6),
+                D7    => tmds_b(7),
+                D8    => tmds_b(8),
+                D9    => tmds_b(9)
+            );
+
+        ser_g : OSER10
+            generic map (
+                GSREN => "false",
+                LSREN => "true"
+            )
+            port map (
+                PCLK  => clock_27,
+                FCLK  => clock_135,
+                RESET => '0',
+                Q     => serialized_g,
+                D0    => tmds_g(0),
+                D1    => tmds_g(1),
+                D2    => tmds_g(2),
+                D3    => tmds_g(3),
+                D4    => tmds_g(4),
+                D5    => tmds_g(5),
+                D6    => tmds_g(6),
+                D7    => tmds_g(7),
+                D8    => tmds_g(8),
+                D9    => tmds_g(9)
+            );
+
+        ser_r : OSER10
+            generic map (
+                GSREN => "false",
+                LSREN => "true"
+            )
+            port map (
+                PCLK  => clock_27,
+                FCLK  => clock_135,
+                RESET => '0',
+                Q     => serialized_r,
+                D0    => tmds_r(0),
+                D1    => tmds_r(1),
+                D2    => tmds_r(2),
+                D3    => tmds_r(3),
+                D4    => tmds_r(4),
+                D5    => tmds_r(5),
+                D6    => tmds_r(6),
+                D7    => tmds_r(7),
+                D8    => tmds_r(8),
+                D9    => tmds_r(9)
+                );
+
+        ser_c : OSER10
+            generic map (
+                GSREN => "false",
+                LSREN => "true"
+            )
+            port map (
+                PCLK  => clock_27,
+                FCLK  => clock_135,
+                RESET => '0',
+                Q     => serialized_c,
+                D0    => '1',
+                D1    => '1',
+                D2    => '1',
+                D3    => '1',
+                D4    => '1',
+                D5    => '0',
+                D6    => '0',
+                D7    => '0',
+                D8    => '0',
+                D9    => '0'
+            );
+
+        -- Encode the 1-bit serialized TMDS streams to Low-voltage differential signaling (LVDS) HDMI output pins
+
+        OBUFDS_c : ELVDS_OBUF
+            port map (
+                I  => serialized_c,
+                O  => tmds_clk_p,
+                OB => tmds_clk_n
+             );
+
+        OBUFDS_b : ELVDS_OBUF
+            port map (
+                I  => serialized_b,
+                O  => tmds_d_p(0),
+                OB => tmds_d_n(0)
+            );
+
+        OBUFDS_g : ELVDS_OBUF
+            port map (
+                I  => serialized_g,
+                O  => tmds_d_p(1),
+                OB => tmds_d_n(1)
+            );
+
+        OBUFDS_r : ELVDS_OBUF
+            port map (
+                I  => serialized_r,
+                O  => tmds_d_p(2),
+                OB => tmds_d_n(2)
+            );
+
+    end generate;
 
 
     --------------------------------------------------------
@@ -868,7 +1135,7 @@ begin
     -- 1MHz Bus LEDs
     --------------------------------------------------------
 
-    normal_leds <= (caps_led & shift_led & m128_mode & m5k_filter_en & "00") xor "111111";
+    normal_leds <= (caps_led & shift_led & m128_mode & m5k_filter_en & hdmi_audio_src & hdmi_audio_en) xor "111111";
 
     GenLEDS: if IncludeSoftLEDs generate
         signal soft_leds       : std_logic_vector(7 downto 0) := (others => '0');
@@ -957,6 +1224,7 @@ begin
 
     end generate;
 
+g_15k_video: if not IncludeHDMI generate
     --------------------------------------------------------
     -- 1 bit video
     --------------------------------------------------------
@@ -978,11 +1246,6 @@ begin
             CLKOUT => clock_72,         -- 27MHz HDMI Pixel Clock
             CALIB  => '1'
         );
-
-
-    vid_cs_o <= not (i_VGA_hs xor i_VGA_vs); 
-    vid_vs_o <= i_VGA_vs;
-
 
       p_car_gen:process(clock_48)
       constant div : natural := 709379;
@@ -1111,7 +1374,44 @@ begin
         sample_i          => unsigned(not(i_VGA_B)),
         bitstream_o       => vid_b_o
    );
+ end generate;
 
+g_vga_out: if IncludeHDMI generate
+--------------------------------------------------------
+-- VGA outputs
+--------------------------------------------------------
+
+    -- Note: It's a build error if both IncludeVGADAC and IncludeCoProExt are both set
+
+        e_vidr:entity work.dac1_oser
+            port map (
+                rst_i               => not hard_reset_n,
+                clk_sample_i        => clock_27,
+                clk_dac_px_i        => clock_81,
+                clk_dac_i           => clock_405,
+                sample_i            => not unsigned(i_VGA_r),
+                bitstream_o         => vid_r_o
+                );
+        e_vidg:entity work.dac1_oser
+            port map (
+                rst_i               => not hard_reset_n,
+                clk_sample_i        => clock_27,
+                clk_dac_px_i        => clock_81,
+                clk_dac_i           => clock_405,
+                sample_i            => not unsigned(i_VGA_g),
+                bitstream_o         => vid_g_o
+                );
+        e_vidb:entity work.dac1_oser
+            port map (
+                rst_i               => not hard_reset_n,
+                clk_sample_i        => clock_27,
+                clk_dac_px_i        => clock_81,
+                clk_dac_i           => clock_405,
+                sample_i            => not unsigned(i_VGA_b),
+                bitstream_o         => vid_b_o
+                );
+
+end generate;
 
     --------------------------------------------------
     -- C20K multiplexer

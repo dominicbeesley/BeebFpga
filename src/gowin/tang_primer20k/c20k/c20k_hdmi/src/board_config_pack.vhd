@@ -2,7 +2,7 @@
 package board_config_pack is
 
     constant G_CONFIG_DEBUGGER : boolean := false;
-    constant G_CONFIG_HDMI : boolean := false;
+    constant G_CONFIG_HDMI : boolean := true;
 
 end board_config_pack;
 
