@@ -476,15 +476,6 @@ function VOLUME_FN(log : in natural) return natural is
     signal ipo_j_spi_mosi   : std_logic;
     signal ipo_j_adc_nCS    : std_logic;
 
-    function B2S(b:boolean) return std_logic is
-    begin
-        if b then
-            return '1';
-        else
-            return '0';
-        end if;
-    end function;
-
 begin
 
     -- C20K bodge
@@ -501,7 +492,7 @@ begin
     ipo_j_spi_clk    <= '1';
     ipo_VID_HS       <= i_VGA_HS;
     ipo_VID_VS       <= i_VGA_VS;
-    ipo_VID_CS       <= (not (i_VGA_hs xor i_VGA_vs)) xor B2S(IncludeHDMI);
+    ipo_VID_CS       <= not (i_VGA_hs xor i_VGA_vs);
     ipo_j_spi_mosi   <= '1';
     ipo_j_adc_nCS    <= '1';
 
